@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root {--canvas: 216 33% 97%; --panel: 0 0% 100%; --ink: 222 42% 13%; --subtle: 218 13% 45%; --line: 214 24% 90%; --brand: 242 80% 61%; color-scheme:light}
+.dark {--canvas: 226 31% 9%; --panel: 224 29% 13%; --ink: 210 33% 96%; --subtle: 219 13% 65%; --line: 225 18% 23%; --brand: 245 89% 72%; color-scheme:dark}
+* {box-sizing:border-box}
+body {background:hsl(var(--canvas)); color:hsl(var(--ink)); font-family:Arial,Helvetica,sans-serif; -webkit-font-smoothing:antialiased}
+button,input {font:inherit}
+button {cursor:pointer}
+button:disabled {cursor:not-allowed;opacity:.55}
+::selection {background:hsl(var(--brand)/.25)}
