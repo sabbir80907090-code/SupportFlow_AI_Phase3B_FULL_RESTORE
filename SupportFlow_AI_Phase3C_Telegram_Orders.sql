@@ -187,8 +187,8 @@ BEGIN
     VALUES (p_business_id,d.customer_name,d.phone)
     RETURNING id INTO v_customer_id;
 
-    INSERT INTO public.orders (business_id,customer_id,product_details,status)
-    VALUES (p_business_id,v_customer_id,d.product||' × '||d.quantity,'pending')
+    INSERT INTO public.orders (business_id,customer_id,product_details,total_amount,currency,status)
+    VALUES (p_business_id,v_customer_id,d.product||' × '||d.quantity,NULL,'BDT','pending')
     RETURNING id,order_number INTO v_order_id,v_order_number;
 
     INSERT INTO public.order_delivery_details
