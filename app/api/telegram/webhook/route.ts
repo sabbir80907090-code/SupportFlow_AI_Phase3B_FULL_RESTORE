@@ -50,7 +50,7 @@ export async function POST(req:NextRequest) {
   if(me){console.error('Telegram message write failed',me.code);return NextResponse.json({error:'Message write failed'},{status:500});}
   // Phase 3C is opt-in; with the flag off, Phase 3B works unchanged.
   try {
-    if(await handleTelegramOrderMessage(conversation.id,msg.message_id,text))
+    if(await handleTelegramOrderMessage(conversation.id,msg.message_id!,text))
       return NextResponse.json({ok:true,order_flow:true});
   }catch(e){
     console.error('Phase 3C order handling failed',e instanceof Error?e.message:String(e));
