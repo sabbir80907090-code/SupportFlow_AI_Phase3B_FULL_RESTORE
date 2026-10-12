@@ -2,6 +2,7 @@ import {NextRequest,NextResponse,after} from 'next/server';
 import {timingSafeEqual} from 'node:crypto';
 import {adminDb,getServerConfig} from '@/lib/telegram-server';
 import {processTelegramAiQueue} from '@/lib/telegram-ai';
+import {handleTelegramOrderMessage} from '@/lib/telegram-orders';
 
 export const runtime='nodejs';
 
@@ -47,6 +48,14 @@ export async function POST(req:NextRequest) {
     text,telegram_message_id:String(msg.message_id)
   },{onConflict:'business_id,conversation_id,telegram_message_id',ignoreDuplicates:true});
   if(me){console.error('Telegram message write failed',me.code);return NextResponse.json({error:'Message write failed'},{status:500});}
+  // Phase 3C is opt-in; with the flag off, Phase 3B works unchanged.
+  try {
+    if(await handleTelegramOrderMessage(conversation.id,msg.message_id,text))
+      return NextResponse.json({ok:true,order_flow:true});
+  }catch(e){
+    console.error('Phase 3C order handling failed',e instanceof Error?e.message:String(e));
+    return NextResponse.json({error:'Order intake temporarily unavailable'},{status:500});
+  }
   // A direct request for a human pauses AI for this chat. No automated reply is sent.
   if(/\b(human|real person|live agent|speak to (an? )?(agent|person)|talk to (an? )?(agent|person))\b/i.test(text) ||
      /(মানুষের সাথে|মানুষের সঙ্গে|এজেন্টের সাথে|এজেন্টের সঙ্গে|কাস্টমার কেয়ার|কাস্টমার কেয়ার)/.test(text)) {
