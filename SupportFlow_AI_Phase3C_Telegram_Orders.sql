@@ -152,7 +152,13 @@ BEGIN
     WHERE business_id=p_business_id AND conversation_id=p_conversation_id;
     RETURN jsonb_build_object('handled',true,'reply','কয়টি নিতে চান? শুধু সংখ্যা লিখুন (১–৯৯৯)।');
   ELSIF d.step='quantity' THEN
-    IF v_text !~ '^[0-9]{1,3}
+    IF v_text !~ '^[0-9]{1,3}$' THEN
+      RETURN jsonb_build_object('handled',true,'reply','অনুগ্রহ করে ১ থেকে ৯৯৯-এর মধ্যে সংখ্যা লিখুন।');
+    END IF;
+    IF v_text::integer NOT BETWEEN 1 AND 999 THEN
+      RETURN jsonb_build_object('handled',true,'reply','অনুগ্রহ করে ১ থেকে ৯৯৯-এর মধ্যে সংখ্যা লিখুন।');
+    END IF;
+    UPDATE public.telegram_order_drafts SET quantity=v_text::integer,step='address',
       last_message_id=p_message_id,updated_at=now()
     WHERE business_id=p_business_id AND conversation_id=p_conversation_id;
     RETURN jsonb_build_object('handled',true,'reply','ডেলিভারির ঠিকানা লিখুন। ঠিকানা শুধু অর্ডার পরিচালনার জন্য সংরক্ষিত হবে।');
