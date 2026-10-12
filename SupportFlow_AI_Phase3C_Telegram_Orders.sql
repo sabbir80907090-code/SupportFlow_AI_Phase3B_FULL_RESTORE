@@ -63,6 +63,7 @@ DECLARE
   v_customer_id uuid;
   v_order_id uuid;
   v_order_number text;
+  v_inserted_count integer;
 BEGIN
   IF p_message_id IS NULL OR p_message_id <= 0 OR length(v_text) > 4096 THEN
     RETURN jsonb_build_object('handled',false);
@@ -90,13 +91,14 @@ BEGIN
       (business_id,conversation_id,step,last_message_id)
     VALUES (p_business_id,p_conversation_id,'name',p_message_id)
     ON CONFLICT DO NOTHING;
+    GET DIAGNOSTICS v_inserted_count = ROW_COUNT;
     SELECT * INTO d FROM public.telegram_order_drafts
     WHERE business_id=p_business_id AND conversation_id=p_conversation_id
     FOR UPDATE;
+    IF v_inserted_count = 1 THEN
+      RETURN jsonb_build_object('handled',true,'reply','অর্ডার শুরু হয়েছে। আপনার নাম লিখুন।');
+    END IF;
     IF d.last_message_id >= p_message_id THEN
-      IF d.last_message_id = p_message_id AND d.step='name' THEN
-        RETURN jsonb_build_object('handled',true,'reply','অর্ডার শুরু হয়েছে। আপনার নাম লিখুন।');
-      END IF;
       RETURN jsonb_build_object('handled',true);
     END IF;
   END IF;
@@ -150,7 +152,71 @@ BEGIN
     WHERE business_id=p_business_id AND conversation_id=p_conversation_id;
     RETURN jsonb_build_object('handled',true,'reply','কয়টি নিতে চান? শুধু সংখ্যা লিখুন (১–৯৯৯)।');
   ELSIF d.step='quantity' THEN
-    IF v_text !~ '^[0-9]{1,3}$' OR v_text::integer NOT BETWEEN 1 AND 999 THEN
+    IF v_text !~ '^[0-9]{1,3}
+    UPDATE public.telegram_order_drafts SET quantity=v_text::integer,step='address',
+      last_message_id=p_message_id,updated_at=now()
+    WHERE business_id=p_business_id AND conversation_id=p_conversation_id;
+    RETURN jsonb_build_object('handled',true,'reply','ডেলিভারির ঠিকানা লিখুন। ঠিকানা শুধু অর্ডার পরিচালনার জন্য সংরক্ষিত হবে।');
+  ELSIF d.step='address' THEN
+    IF length(v_text) < 8 OR length(v_text) > 400 THEN
+      RETURN jsonb_build_object('handled',true,'reply','ঠিকানা ৮–৪০০ অক্ষরের মধ্যে লিখুন।');
+    END IF;
+    UPDATE public.telegram_order_drafts SET delivery_address=v_text,step='confirm',
+      last_message_id=p_message_id,updated_at=now()
+    WHERE business_id=p_business_id AND conversation_id=p_conversation_id;
+    RETURN jsonb_build_object('handled',true,'reply',
+      'অর্ডার যাচাই করুন:'||E'\n'||
+      'নাম: '||d.customer_name||E'\n'||
+      'ফোন: '||d.phone||E'\n'||
+      'পণ্য: '||d.product||E'\n'||
+      'পরিমাণ: '||d.quantity||E'\n'||
+      'ঠিকানা: '||v_text||E'\n\n'||
+      'সঠিক হলে YES লিখুন, বাতিল করতে NO লিখুন। দাম ও স্টক এখনো নিশ্চিত করা হয়নি।');
+  ELSIF d.step='confirm' THEN
+    IF v_lower IN ('no','না') THEN
+      UPDATE public.telegram_order_drafts SET step='cancelled',
+        last_message_id=p_message_id,updated_at=now()
+      WHERE business_id=p_business_id AND conversation_id=p_conversation_id;
+      RETURN jsonb_build_object('handled',true,'reply','অর্ডার বাতিল করা হয়েছে। আবার শুরু করতে /order লিখুন।');
+    END IF;
+    IF v_lower NOT IN ('yes','হ্যাঁ','হ্যা') THEN
+      RETURN jsonb_build_object('handled',true,'reply','অর্ডার সেভ করতে YES অথবা বাতিল করতে NO লিখুন।');
+    END IF;
+
+    INSERT INTO public.customers (business_id,name,phone)
+    VALUES (p_business_id,d.customer_name,d.phone)
+    RETURNING id INTO v_customer_id;
+
+    INSERT INTO public.orders (business_id,customer_id,product_details,total_amount,currency,status)
+    VALUES (p_business_id,v_customer_id,d.product||' × '||d.quantity,NULL,'BDT','pending')
+    RETURNING id,order_number INTO v_order_id,v_order_number;
+
+    INSERT INTO public.order_delivery_details
+      (order_id,business_id,delivery_address,telegram_conversation_id)
+    VALUES (v_order_id,p_business_id,d.delivery_address,p_conversation_id);
+
+    UPDATE public.telegram_order_drafts SET step='completed',order_id=v_order_id,
+      last_message_id=p_message_id,updated_at=now()
+    WHERE business_id=p_business_id AND conversation_id=p_conversation_id;
+
+    RETURN jsonb_build_object('handled',true,'order_created',true,'order_id',v_order_id,
+      'reply','আপনার অর্ডার অনুরোধ সংরক্ষিত হয়েছে। অর্ডার নম্বর: '||
+        coalesce(v_order_number,v_order_id::text)||E'\n'||
+        'স্ট্যাটাস: Pending। ব্যবসার টিম যাচাই করে সিদ্ধান্ত জানাবে।');
+  END IF;
+
+  RETURN jsonb_build_object('handled',false);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.handle_telegram_order_message(uuid,uuid,bigint,text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_telegram_order_message(uuid,uuid,bigint,text)
+  TO service_role;
+ THEN
+      RETURN jsonb_build_object('handled',true,'reply','অনুগ্রহ করে ১ থেকে ৯৯৯-এর মধ্যে সংখ্যা লিখুন।');
+    END IF;
+    IF v_text::integer NOT BETWEEN 1 AND 999 THEN
       RETURN jsonb_build_object('handled',true,'reply','অনুগ্রহ করে ১ থেকে ৯৯৯-এর মধ্যে সংখ্যা লিখুন।');
     END IF;
     UPDATE public.telegram_order_drafts SET quantity=v_text::integer,step='address',
