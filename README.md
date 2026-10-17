@@ -1,3 +1,29 @@
+# SupportFlow — Supabase SaaS foundation
+
+## Current update
+
+- Business-scoped customer and order dashboard with Supabase Auth and row-level security.
+- Owner/admin order decisions through authorized RPCs.
+- Knowledge Base CRUD, with business facts included in Telegram AI context.
+- Channel setup cards clearly distinguish Telegram integration from planned Messenger, WhatsApp and website chat.
+- Default order currency: BDT. Dependencies are pinned; no credentials are committed.
+
+## Fresh database setup
+
+Only when SupportFlow tables do not already exist, apply in this order:
+
+1. `database/supportflow_core.sql`
+2. `SupportFlow_AI_Phase3A_Telegram_Inbox.sql`
+3. `SupportFlow_AI_Phase3B_Gemini.sql`
+
+Do not replay the core bootstrap against an existing SupportFlow database. These scripts do not alter the existing n8n tables. Configure the variables listed in `.env.example` using your hosting provider's environment settings. The Supabase publishable key is for the client; service-role, Telegram and Gemini keys are server-only. Run `npm ci`, `npm run typecheck`, then `npm run build`.
+
+## Release status
+
+This is a foundation, not a complete commercial omnichannel SaaS. Messenger, WhatsApp, the website widget, subscriptions, team invitations and durable AI workers are not implemented. Telegram supports one configured business per server. Live channel delivery and browser workflows still require end-to-end verification. Knowledge articles are reference facts, not live stock or order data.
+
+## Original Telegram setup guide
+
 # SupportFlow AI — Phase 3B: Gemini Telegram Auto Reply (local MVP)
 
 This ZIP is an update to the user's **working Phase 3A project**. It keeps the existing Supabase orders/customers, Telegram webhook, Telegram inbox, and human reply route, and adds an **optional Gemini AI auto-responder**.
@@ -16,7 +42,7 @@ This ZIP is an update to the user's **working Phase 3A project**. It keeps the e
 - Delivery-uncertain jobs are NOT automatically retried (to avoid duplicate Telegram messages).
 - Gemini API key remains **server-only**, never sent to the browser.
 
-## Windows installation — IMPORTANT: in this exact order
+## Updating a previously configured Telegram installation
 
 1. **Backup** your current `supportflow-ai-phase3a` folder and `.env.local` privately. Do not upload `.env.local` anywhere.
 2. Stop the current Next.js terminal (`Ctrl+C`). You can leave ngrok running if it already forwards to port 3000.

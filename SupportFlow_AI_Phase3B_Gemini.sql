@@ -47,7 +47,7 @@ CREATE POLICY telegram_ai_jobs_member_read ON public.telegram_ai_jobs FOR SELECT
 -- Atomic claim: prevents repeated Telegram webhooks from causing duplicate AI replies.
 -- Security invoker + REVOKE means only the server's service-role credentials can claim jobs.
 CREATE OR REPLACE FUNCTION public.claim_telegram_ai_job(p_job_id uuid, p_business_id uuid)
-RETURNS SETOF public.telegram_ai_jobs LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+RETURNS SETOF public.telegram_ai_jobs LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
 BEGIN
   RETURN QUERY
   UPDATE public.telegram_ai_jobs AS j SET status='processing',started_at=now()
@@ -61,3 +61,5 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.claim_telegram_ai_job(uuid,uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_telegram_ai_job(uuid,uuid) TO service_role;
+
+GRANT ALL ON public.telegram_conversations, public.telegram_messages, public.telegram_ai_settings, public.telegram_ai_jobs TO service_role;
