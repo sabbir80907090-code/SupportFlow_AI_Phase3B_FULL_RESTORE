@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const js=ts.transpileModule(readFileSync(new URL('../lib/workflow-input.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ES2022}}).outputText;
+const {validateWorkflowOrder,validIdentity}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+const order={channel:'whatsapp',senderId:'123',idempotencyKey:'event-12345',name:'Test Customer',phone:'01700-000000',email:'test@example.com',address:'House 1, Dhaka',product:'Product A'};
+test('accepts complete order and normalized Bangladesh phone',()=>assert.equal(validateWorkflowOrder(order),null));
+test('rejects missing and oversized required fields',()=>{for(const k of ['senderId','name','address','product','idempotencyKey','phone','email'])assert.ok(validateWorkflowOrder({...order,[k]:''}),k);assert.ok(validateWorkflowOrder({...order,product:'a'.repeat(4001)}));});
+test('rejects unsupported channels and structured identities',()=>{assert.equal(validIdentity({channel:'email',senderId:'123'}),false);assert.equal(validIdentity({channel:'telegram',senderId:{id:'123'}}),false)});
+test('rejects malformed contact details',()=>{assert.ok(validateWorkflowOrder({...order,phone:'+8801700000000'}));assert.ok(validateWorkflowOrder({...order,email:'test@example'}));});

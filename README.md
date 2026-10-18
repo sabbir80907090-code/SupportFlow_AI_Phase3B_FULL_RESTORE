@@ -1,5 +1,11 @@
 # SupportFlow — Supabase SaaS foundation
 
+## Workflow order bridge (18 October 2026)
+
+The supplied Customer Support 5.4 MAIN and ORDER APPROVAL workflows were reviewed. A new Workflow dashboard accepts validated orders through a business-scoped server API, prevents duplicate intake, and exposes pending-only staff approval. Apply `database/workflow_orders.sql` after the core/Telegram scripts. See `docs/N8N_CONNECTION.md` for the exact contract and remaining work. The uploaded workflows have not been activated or edited in n8n. No notification messages were sent.
+
+Verification: `npm run typecheck`, `npm run build`, `node --test tests/workflow-input.test.mjs`, and rollback-only `tests/workflow-orders.sql` on Supabase. Browser interaction and real channel delivery remain unverified.
+
 ## Current update
 
 - Business-scoped customer and order dashboard with Supabase Auth and row-level security.
