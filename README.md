@@ -1,5 +1,15 @@
 # SupportFlow — Supabase SaaS foundation
 
+## Unified inbox update (19 October 2026)
+
+The All Inbox tab displays business-scoped Telegram, Messenger, WhatsApp and website messages received through the authenticated n8n bridge. Staff replies enter an outbox, pause AI for that conversation, and become sent only after a trusted delivery worker acknowledges a provider message ID. Duplicate intake, duplicate replies and cross-business access are checked in `tests/unified-inbox.sql`.
+
+Apply `database/unified_inbox.sql` after `database/workflow_orders.sql`. The incoming adapter is in `integrations/n8n-incoming-adapter.json`; installation and worker contracts are in `docs/N8N_CONNECTION.md`. The adapter is inactive and has not been run in n8n. Provider delivery workers and the public website widget still need implementation/configuration. The pause flag only controls n8n AI after the documented workflow checks are installed.
+
+Verified: TypeScript check, production build, and rollback-only Supabase tests for deduplication, tenant isolation, pause, claim ownership and delivery acknowledgement. Browser and live channel delivery are not yet verified.
+
+Existing Supabase security findings remain on the legacy n8n tables (RLS disabled) and `match_documents` (mutable search path); the new inbox tables have RLS. See https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public .
+
 ## Workflow order bridge (18 October 2026)
 
 The supplied Customer Support 5.4 MAIN and ORDER APPROVAL workflows were reviewed. A new Workflow dashboard accepts validated orders through a business-scoped server API, prevents duplicate intake, and exposes pending-only staff approval. Apply `database/workflow_orders.sql` after the core/Telegram scripts. See `docs/N8N_CONNECTION.md` for the exact contract and remaining work. The uploaded workflows have not been activated or edited in n8n. No notification messages were sent.

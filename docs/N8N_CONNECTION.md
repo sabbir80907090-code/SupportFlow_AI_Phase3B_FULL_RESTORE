@@ -46,3 +46,21 @@ Main: Telegram/Messenger/WhatsApp -> signature checks where configured -> typed 
 Approval: GET validates secret + order and renders confirmation; POST validates again, updates pending order, then emails and sends a channel result. The app keeps human confirmation and pending-only decisions, but uses authenticated business roles instead of a shared query-string secret.
 
 SaaS conversion must add business identity to memory, buffer, vector retrieval and every external account. The existing `channel:senderId` memory key is insufficient for multiple businesses. The prompt also contradicts itself about cancelling confirmed orders; this needs an explicit product rule before implementing cancellation. Existing webhook-trigger verification and delivery semantics must be preserved, not replaced with AI-only instructions.
+
+## Unified inbox update
+
+Apply `database/unified_inbox.sql` after workflow_orders.sql. **All Inbox** shows messages mirrored from all four channels, transcript/image-description text, human-mode state and queued staff replies. Queueing a reply pauses the conversation. No provider delivery happens inside this API yet.
+
+`integrations/n8n-incoming-adapter.json` contains two importable adapter nodes, no credentials and no activation trigger. Import into a temporary workflow, then copy both nodes into MAIN after **Prepare Unified Message** and before **Ensure Unified Buffer Table**. Remove the original direct edge. Set n8n variable `SUPPORTFLOW_BASE_URL` to the deployed HTTPS app origin and select your business's Header Auth credential on the HTTP node. The second node restores the original payload because HTTP responses otherwise replace it. This adapter has not been executed in your n8n instance.
+
+Add a boolean IF after the adapter: `aiPaused` equals false -> continue the AI path; true -> stop AI processing. Do not skip recording the message while paused. Recheck pause state before sending AI output to reduce the human-handoff race. An in-flight send cannot be atomically cancelled across n8n and an external provider.
+
+After a provider confirms an AI reply was delivered, POST `/api/bridge/messages` with verified channel/sender, stable provider eventId, direction `outbound`, and the delivered text. Do not record attempted/failed sends as delivered. Never log access tokens or raw attachments. Maximum message text: 12,000 characters.
+
+### Staff-reply delivery worker contract
+
+The worker is not deployed. An authenticated n8n worker can POST `/api/bridge/outbox` with `{"action":"claim"}` to atomically claim up to 10 replies. Returned items include channel, recipient, text, id and claim_token. Route each item through the matching business's provider credential; only after confirmed delivery POST `{"action":"ack","id":"...","claimToken":"...","sent":true,"providerMessageId":"..."}`. This records one delivered message.
+
+On a failed or uncertain provider result ACK with `sent:false`; it becomes `needs_review`. A crashed worker leaves items `claimed` for operator review. **Do not automatically resend claimed/uncertain items**: the provider may already have delivered them. Queueing is idempotent by request ID; claims are exclusive; acknowledgements are idempotent. This is not a claim of exactly-once external delivery.
+
+A provider-credential mapping and active worker must be configured before staff replies can reach customers. Website visitor identity/session verification and public widget endpoints still need implementation. The workflow key is server-only and must never be embedded in a widget.

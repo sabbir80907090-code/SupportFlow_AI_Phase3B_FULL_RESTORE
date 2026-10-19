@@ -1,0 +1,58 @@
+{
+  "name": "SupportFlow - Incoming Message Adapter (paste into MAIN)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "9de0b81e-209f-4f15-89d4-9c9ac85937cf",
+      "name": "SupportFlow - Store Incoming Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.SUPPORTFLOW_BASE_URL + '/api/bridge/messages' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({channel:$json.channel,senderId:$json.senderId,eventId:$json.eventId,text:$json.userMessage,direction:'inbound',kind:$json.route==='voice'?'voice_transcript':$json.route==='photo'?'image_description':'text'}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "8a7e0c26-e26d-45ab-87bf-b99d19e32082",
+      "name": "SupportFlow - Restore Message and Pause Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        250,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const original = $('Prepare Unified Message').first().json; return [{json:{...original, aiPaused:$json.aiPaused, supportflowConversationId:$json.conversationId}}];"
+      }
+    }
+  ],
+  "connections": {
+    "SupportFlow - Store Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "SupportFlow - Restore Message and Pause Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
