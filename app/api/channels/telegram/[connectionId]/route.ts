@@ -70,12 +70,12 @@ export async function POST(req:NextRequest,context:{params:Promise<{connectionId
   if(error){console.error('SupportFlow Telegram ingress error',error.code);
     return NextResponse.json({error:'Message ingestion failed'},{status:503});}
   if(!data?.duplicate && data?.conversationId){
-    const {data:message,error:lookupError}=await db.from('support_messages').select('id')
+    const {data:storedMessage,error:lookupError}=await db.from('support_messages').select('id')
       .eq('business_id',connection.business_id).eq('conversation_id',data.conversationId)
       .eq('event_id',String(message.message_id)).eq('direction','inbound').maybeSingle();
-    if(lookupError||!message)return NextResponse.json({error:'Message job lookup failed'},{status:503});
+    if(lookupError||!storedMessage)return NextResponse.json({error:'Message job lookup failed'},{status:503});
     const {error:enqueueError}=await db.rpc('enqueue_support_ai_job',{
-      p_business_id:connection.business_id,p_conversation_id:data.conversationId,p_message_id:message.id
+      p_business_id:connection.business_id,p_conversation_id:data.conversationId,p_message_id:storedMessage.id
     });
     if(enqueueError)return NextResponse.json({error:'AI job enqueue failed'},{status:503});
   }
