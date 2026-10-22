@@ -34,7 +34,17 @@ export async function POST(req:NextRequest,context:{params:Promise<{connectionId
   const {connectionId}=await context.params;
   if(!uuid.test(connectionId))return NextResponse.json({error:'Not found'},{status:404});
   const secrets=webhookSecrets();
-  const expected=secrets?.[connectionId];
+  let expected=secrets?.[connectionId];
+  if(!expected){
+    const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if(!url||!key)return NextResponse.json({error:'Not configured'},{status:503});
+    const database=adminDb(url,key);
+    const {data:credential}=await database.from('support_telegram_credentials').select('webhook_secret_ciphertext').eq('connection_id',connectionId).maybeSingle();
+    if(credential){
+      try{const {decryptChannelCredential}=await import('@/lib/support-channel-credentials');expected=decryptChannelCredential(credential.webhook_secret_ciphertext,connectionId);}
+      catch{return NextResponse.json({error:'Not configured'},{status:503});}
+    }
+  }
   if(!expected)return NextResponse.json({error:'Not configured'},{status:503});
   if(!secureEquals(req.headers.get('x-telegram-bot-api-secret-token')??'',expected))
     return NextResponse.json({error:'Unauthorized'},{status:401});
