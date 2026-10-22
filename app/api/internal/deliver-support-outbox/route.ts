@@ -44,7 +44,16 @@ export async function GET(req:NextRequest){
  let processed=0,review=0;
  for(const [businessId,ids] of byBusiness){
   if(processed>=10)break;
-  if(ids.length!==1||!configured[ids[0]])continue;
+  if(ids.length!==1)continue;
+  let deliveryToken=configured[ids[0]];
+  if(!deliveryToken){
+   const {data:stored}=await db.from('support_telegram_credentials').select('bot_token_ciphertext').eq('connection_id',ids[0]).maybeSingle();
+   if(stored){
+    try{const {decryptChannelCredential}=await import('@/lib/support-channel-credentials');deliveryToken=decryptChannelCredential(stored.bot_token_ciphertext,ids[0]);}
+    catch{continue;}
+   }
+  }
+  if(!deliveryToken||deliveryToken===process.env.TELEGRAM_BOT_TOKEN)continue;
   const {data:claimed,error:claimError}=await db.rpc('claim_support_outbox',{p_business_id:businessId});
   if(claimError){console.error('Outbox claim failed',claimError.code);continue;}
   for(const item of claimed??[]){
@@ -59,7 +68,7 @@ export async function GET(req:NextRequest){
        conversation.sender_id!==item.recipient)throw Error('conversation_not_sendable');
     // Telegram message delivery has an ambiguous outcome on network timeouts.
     // Never automatically resend a claimed item: manual review avoids duplicates.
-    providerId=await telegramSend(configured[ids[0]],item.recipient,item.text);
+    providerId=await telegramSend(deliveryToken,item.recipient,item.text);
     sent=true;
    }catch(e){console.error('Outbox delivery requires review',e instanceof Error?e.message:'unknown');review++;}
    const {error:ackError}=await db.rpc('ack_support_outbox',{
