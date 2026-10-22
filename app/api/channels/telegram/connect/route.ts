@@ -27,6 +27,9 @@ export async function POST(req:NextRequest){
   const {data:duplicate,error:de}=await auth.database.from('support_channel_connections').select('id').eq('channel','telegram').eq('external_account_id',String(bot.id)).limit(1);
   if(de)return failure('Connection lookup failed',503);
   if(duplicate?.length)return failure('This Telegram bot is already connected',409);
+  const currentWebhook=await telegramApi<{url:string}>(token,'getWebhookInfo');
+  // Do not take over a bot whose webhook belongs to another application.
+  if(currentWebhook.url)return failure('This bot already has a webhook. Use a new bot to avoid disrupting the existing integration.',409);
   const id=newConnectionId(),secret=newWebhookSecret();
   const encrypted=seal(token,secret,id);
   const {error:insertError}=await auth.database.from('support_channel_connections').insert({id,business_id:auth.businessId,channel:'telegram',external_account_id:String(bot.id),display_name:'@'+bot.username,enabled:false});
