@@ -69,7 +69,7 @@ export async function POST(req:NextRequest,context:{params:Promise<{connectionId
   });
   if(error){console.error('SupportFlow Telegram ingress error',error.code);
     return NextResponse.json({error:'Message ingestion failed'},{status:503});}
-  if(!data?.duplicate && data?.conversationId){
+  if(data?.conversationId){
     const {data:storedMessage,error:lookupError}=await db.from('support_messages').select('id')
       .eq('business_id',connection.business_id).eq('conversation_id',data.conversationId)
       .eq('event_id',String(message.message_id)).eq('direction','inbound').maybeSingle();
