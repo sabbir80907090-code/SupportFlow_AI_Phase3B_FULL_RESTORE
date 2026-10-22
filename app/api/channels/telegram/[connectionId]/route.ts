@@ -70,6 +70,15 @@ export async function POST(req:NextRequest,context:{params:Promise<{connectionId
   if(error){console.error('SupportFlow Telegram ingress error',error.code);
     return NextResponse.json({error:'Message ingestion failed'},{status:503});}
   if(data?.conversationId){
+    const wantsHuman=/\b(human|real person|live agent|speak to (an? )?(agent|person)|talk to (an? )?(agent|person))\b/i.test(message.text)||/(মানুষের সাথে|মানুষের সঙ্গে|এজেন্টের সাথে|এজেন্টের সঙ্গে|কাস্টমার কেয়ার|কাস্টমার কেয়ার)/.test(message.text);
+    if(wantsHuman){
+      const {error:pauseError}=await db.from('support_conversations').update({ai_paused:true})
+        .eq('business_id',connection.business_id).eq('id',data.conversationId);
+      if(pauseError)return NextResponse.json({error:'Handoff state failed'},{status:503});
+      return NextResponse.json({ok:true,handoff:true});
+    }
+    if(process.env.SUPPORTFLOW_NEW_AI_ENABLED!=='true')
+      return NextResponse.json({ok:true,ai:'disabled'});
     const {data:storedMessage,error:lookupError}=await db.from('support_messages').select('id')
       .eq('business_id',connection.business_id).eq('conversation_id',data.conversationId)
       .eq('event_id',String(message.message_id)).eq('direction','inbound').maybeSingle();
