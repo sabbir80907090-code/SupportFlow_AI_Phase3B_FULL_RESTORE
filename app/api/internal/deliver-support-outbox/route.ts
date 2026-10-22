@@ -17,7 +17,7 @@ function tokens():Record<string,string>|null{
   const raw=JSON.parse(process.env.SUPPORTFLOW_TELEGRAM_BOT_TOKENS??'{}') as unknown;
   if(!raw||typeof raw!=='object'||Array.isArray(raw))return null;
   const entries=Object.entries(raw);
-  if(entries.some(([id,value])=>!uuid.test(id)||typeof value!=='string'||!/^\\d{5,}:[A-Za-z0-9_-]{20,}$/.test(value)))return null;
+  if(entries.some(([id,value])=>!uuid.test(id)||typeof value!=='string'||!/^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(value)))return null;
   // Never allow this new worker to send through the existing production Telegram bot.
   if(entries.some(([,value])=>value===process.env.TELEGRAM_BOT_TOKEN))return null;
   return raw as Record<string,string>;
