@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {NextRequest,NextResponse} from 'next/server';
 import {authorizedBusiness,db,failure,newConnectionId,newWebhookSecret,seal,telegramApi,tokenPattern} from '@/lib/support-telegram-connect';
 export const runtime='nodejs';
@@ -36,16 +37,17 @@ export async function POST(req:NextRequest){
   const encrypted=seal(token,secret,id);
   const {error:insertError}=await auth.database.from('support_channel_connections').insert({id,business_id:auth.businessId,channel:'telegram',external_account_id:String(bot.id),display_name:'@'+bot.username,enabled:false});
   if(insertError)return failure('Unable to create connection',409);
-  const {error:storeError}=await auth.database.from('support_telegram_credentials').insert({connection_id:id,bot_token_ciphertext:encrypted.token,webhook_secret_ciphertext:encrypted.secret});
+  const {error:storeError}=await auth.database.from('support_telegram_credentials').insert({connection_id:id,bot_token_ciphertext:encrypted.token,webhook_secret_ciphertext:encrypted.secret,webhook_secret_sha256:createHash('sha256').update(secret).digest('hex')});
   if(storeError){await auth.database.from('support_channel_connections').delete().eq('id',id);return failure('Unable to store credentials',503);}
   try{
-   await telegramApi(token,'setWebhook',{url:base.replace(/\/$/,'')+'/api/channels/telegram/'+id,secret_token:secret,allowed_updates:['message'],drop_pending_updates:false});
+   const webhookSet=await telegramApi<boolean>(token,'setWebhook',{url:base.replace(/\/$/,'')+'/'+id,secret_token:secret,allowed_updates:['message'],drop_pending_updates:false});
+   if(webhookSet!==true)throw Error('Telegram rejected webhook');
   }catch{
    await auth.database.from('support_channel_connections').delete().eq('id',id);
    return failure('Telegram webhook setup failed',502);
   }
   const {error:enableError}=await auth.database.from('support_channel_connections').update({enabled:true}).eq('id',id).eq('business_id',auth.businessId);
-  if(enableError)return failure('Webhook registered but connection activation needs review',503);
+  if(enableError){try{await telegramApi(token,'deleteWebhook',{drop_pending_updates:false});}catch{}return failure('Webhook activation failed; connection needs review',503);}
   return NextResponse.json({connection:{id,display_name:'@'+bot.username,enabled:true}},{status:201,headers:{'Cache-Control':'no-store'}});
  }catch{return failure('Connection failed. Check the token and retry.',502);}
 }
