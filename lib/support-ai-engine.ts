@@ -1,4 +1,5 @@
 import {adminDb} from '@/lib/telegram-server';
+import {decryptChannelCredential} from '@/lib/support-channel-credentials';
 
 export const runtime='nodejs';
 type Outcome='queued'|'skipped'|'failed'|'not_claimed';
@@ -29,22 +30,32 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
    if(messages.find(m=>m.direction==='inbound')?.id!==job.inbound_message_id){
      finalState='skipped';return 'skipped';
    }
-   const apiKey=process.env.GEMINI_API_KEY;
-   if(!apiKey)throw Error('gemini_not_configured');
+   const {data:storedKeys,error:keysError}=await db.from('support_ai_api_keys').select('id,key_ciphertext').eq('business_id',job.business_id).eq('enabled',true).order('priority',{ascending:true}).limit(10);
+   if(keysError)throw Error('business_keys_unavailable');
+   const apiKeys:string[]=[];
+   for(const stored of storedKeys??[]){try{apiKeys.push(decryptChannelCredential(stored.key_ciphertext,stored.id));}catch{console.error('Invalid business key ciphertext');}}
+   if(!apiKeys.length)throw Error('business_gemini_key_missing');
    const {data:articles,error:ke}=await db.from('knowledge_articles').select('title,content')
      .eq('business_id',job.business_id).limit(10);
    if(ke)throw Error('knowledge_missing');
    const facts=(articles??[]).map(a=>a.title+': '+a.content).join('\n').slice(0,10000);
    const model=process.env.GEMINI_MODEL??'gemini-2.5-flash';
-   const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{
-     method:'POST',headers:{'content-type':'application/json','x-goog-api-key':apiKey},
-     body:JSON.stringify({
+   let response:Response|undefined;
+   for(const apiKey of apiKeys){
+     const candidate=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{
+       method:'POST',headers:{'content-type':'application/json','x-goog-api-key':apiKey},
+       body:JSON.stringify({
        systemInstruction:{parts:[{text:'Answer customer questions in their language. Never invent order status, prices or inventory. Ask for human help if facts are missing.\nBusiness knowledge:\n'+facts}]},
        contents:[...messages].reverse().map(m=>({role:m.direction==='inbound'?'user':'model',parts:[{text:String(m.text).slice(0,4000)}]})),
        generationConfig:{temperature:0.3,maxOutputTokens:512}
      }),signal:AbortSignal.timeout(25000),cache:'no-store'
-   });
-   if(!response.ok)throw Error('gemini_http_'+response.status);
+     });
+     response=candidate;
+     if(candidate.ok)break;
+     // Fallback only for unavailable/limited credentials; do not retry arbitrary model errors.
+     if(![401,403,429,500,502,503,504].includes(candidate.status))break;
+   }
+   if(!response?.ok)throw Error('gemini_http_'+(response?.status??'unavailable'));
    const payload=await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>}}>} ;
    const answer=payload.candidates?.[0]?.content?.parts?.map(p=>p.text??'').join('').trim();
    if(!answer)throw Error('empty_answer');
