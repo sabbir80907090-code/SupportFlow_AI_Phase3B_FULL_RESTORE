@@ -26,8 +26,8 @@ export function Channels(){
   catch(e){setError(e instanceof Error?e.message:'Connection failed');}
   finally{setBusy(false);}
  }
- async function disconnect(){if(!window.confirm('Disconnect this Telegram bot?'))return;setBusy(true);setError('');setNotice('');
-  try{await request('DELETE');setConnection(null);setNotice('Telegram bot disconnected.');}
+ async function disconnect(){if(!window.confirm('Delete this Telegram bot connection from SupportFlow AI? This will remove its webhook and saved credentials. The bot itself will remain in BotFather.'))return;setBusy(true);setError('');setNotice('');
+  try{await request('DELETE');setConnection(null);setNotice('Telegram bot connection deleted. You can connect a new bot now.');}
   catch(e){setError(e instanceof Error?e.message:'Disconnect failed');}
   finally{setBusy(false);}
  }
@@ -38,7 +38,7 @@ export function Channels(){
    <p className="mt-2 text-sm text-subtle">Create a bot using Telegram @BotFather, then paste its token here. Your business is selected automatically.</p>
    {error&&<p role="alert" className="mt-4 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-600">{error}</p>}
    {notice&&<p role="status" className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-600">{notice}</p>}
-   {connection?<div className="mt-5 space-y-3"><p className="font-semibold">{connection.display_name}</p><p className="text-sm text-subtle">Bot ID: {connection.external_account_id}</p><button disabled={busy} onClick={disconnect} className="rounded-xl border border-rose-500 px-4 py-2 text-sm font-semibold text-rose-600 disabled:opacity-50">{busy?'Please wait…':'Disconnect bot'}</button></div>:
+   {connection?<div className="mt-5 space-y-3"><p className="font-semibold">{connection.display_name}</p><p className="text-sm text-subtle">Bot ID: {connection.external_account_id}</p><button disabled={busy} onClick={disconnect} className="rounded-xl border border-rose-500 px-4 py-2 text-sm font-semibold text-rose-600 disabled:opacity-50">{busy?'Deleting…':'Delete bot connection'}</button></div>:
    <form onSubmit={connect} className="mt-5 max-w-lg space-y-3">
     <label className="block text-sm font-semibold">BotFather token<input type="password" autoComplete="off" spellCheck={false} required value={token} onChange={e=>setToken(e.target.value)} placeholder="Paste your Telegram bot token" className="mt-2 w-full rounded-xl border border-line bg-canvas px-4 py-3 text-sm"/></label>
     <button disabled={busy||loading||!token.trim()} className="rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy?'Verifying…':'Verify & Connect Bot'}</button>
