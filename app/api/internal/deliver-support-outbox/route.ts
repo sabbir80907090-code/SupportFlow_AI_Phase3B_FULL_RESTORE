@@ -64,6 +64,8 @@ export async function GET(req:NextRequest){
     const {data:conversation,error:se}=await db.from('support_conversations')
      .select('ai_paused,channel,sender_id').eq('business_id',businessId)
      .eq('id',item.conversation_id).maybeSingle();
+    const {data:settings,error:settingsError}=await db.from('support_ai_settings').select('enabled').eq('business_id',businessId).maybeSingle();
+    if(settingsError||!settings?.enabled)throw Error('business_ai_disabled');
     if(se||!conversation||conversation.ai_paused||conversation.channel!=='telegram'||
        conversation.sender_id!==item.recipient)throw Error('conversation_not_sendable');
     // Telegram message delivery has an ambiguous outcome on network timeouts.
