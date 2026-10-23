@@ -6,6 +6,7 @@ import {getSupabase} from '@/lib/supabase';
 import {KnowledgeBase} from '@/components/knowledge-base';
 import {Channels} from '@/components/channels';
 import {UnifiedInbox} from '@/components/unified-inbox';
+import {SupportAiSettings} from '@/components/support-ai-settings';
 import {WorkflowOrders} from '@/components/workflow-orders';
 import {LayoutDashboard,Package,Users,Settings,LogOut,Sun,Moon,LoaderCircle,Plus,Check,X,RefreshCcw,ShieldCheck,MessageCircle,Bot,BarChart3} from 'lucide-react';
 
