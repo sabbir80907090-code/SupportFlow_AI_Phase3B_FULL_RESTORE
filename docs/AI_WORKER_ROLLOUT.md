@@ -1,30 +1,32 @@
-# AI worker rollout checklist (not yet deployed)
-New route: GET /api/internal/process-ai-jobs
-Authentication: Authorization: Bearer <CRON_SECRET>, where CRON_SECRET is a random server-only secret >=24 characters.
-Schedule with a trusted external scheduler or Vercel Cron where supported by your plan. A scheduled invocation is required: jobs do NOT run themselves.
+# SupportFlow AI worker production rollout
 
-Required server-side environment:
-- NEXT_PUBLIC_SUPABASE_URL (public URL only)
-- SUPABASE_SERVICE_ROLE_KEY (secret; never NEXT_PUBLIC)
-- GEMINI_API_KEY (secret)
-- GEMINI_MODEL (optional; defaults to gemini-2.5-flash)
-- CRON_SECRET (secret)
-- SUPPORTFLOW_TELEGRAM_WEBHOOK_SECRETS (per-connection JSON map, see DIRECT_TELEGRAM_INGRESS.md)
+Status: NOT LIVE until main deployment, credentials, gates, and real end-to-end verification succeed.
 
-Flow: verified Telegram webhook -> ingest_support_message -> enqueue_support_ai_job -> authorized worker -> Gemini -> support_outbox.
-The worker does NOT send provider messages. Outbox delivery needs a separate audited worker before live replies.
+## Current worker architecture
+- GET /api/internal/process-ai-jobs: authenticated by CRON_SECRET; processes queued tenant-scoped jobs using each business's encrypted enabled provider keys.
+- GET /api/internal/deliver-support-outbox: authenticated by CRON_SECRET; decrypts per-connection Telegram token and delivers queued replies.
+- GET /api/internal/supportflow-readiness: authenticated read-only preflight; does not send a message.
+- Both processing and delivery are OFF unless SUPPORTFLOW_NEW_AI_ENABLED=true and SUPPORTFLOW_NEW_DELIVERY_ENABLED=true respectively.
 
-Safety gates before deployment:
-1. Verify npm ci, npm run typecheck and npm run build on development branch.
-2. Confirm API and database schema contract matches support_outbox and support_messages.
-3. Confirm bot ownership, webhook secret, enabled channel connection and per-business AI opt-in.
-4. Verify human-handoff commands pause AI and stop generation; current new ingress has not implemented handoff commands.
-5. Test cross-business isolation, replay, rate limits, retry of crashed jobs, and quota controls.
-6. Configure worker schedule and provider outbox delivery, then test a non-production Telegram bot.
-7. Promote to main only after passing checks. Current production Vercel deployment is untouched.
+## Scheduled invocation
+The GitHub Actions workflow .github/workflows/supportflow-workers.yml invokes both endpoints every five minutes on default branch main only. GitHub schedule timing is best effort and may be delayed; it is NOT real-time. It will not execute while the workflow exists only on a feature branch.
 
-Known limitations:
-- Job claim does not yet recover stuck processing jobs; operator must review/requeue them.
-- AI processor currently uses a global GEMINI_API_KEY and simple business-scoped knowledge lookup.
-- AI processing must remain disabled until the handoff/opt-in and delivery controls are complete.
-- Vercel integration credentials and deployment status have not been inspected.
+Set these values through GitHub repository environment **production**, never in source:
+- Variable SUPPORTFLOW_WORKER_BASE_URL = verified HTTPS production origin, no trailing slash.
+- Secret SUPPORTFLOW_WORKER_CRON_SECRET = same value as Vercel production CRON_SECRET. Never paste the secret into a PR, issue, or log.
+
+Protect the production environment and main branch. Scheduled runs should use reviewed code only. After merge, trigger workflow_dispatch and verify both endpoint calls return successful results. Keep worker flags disabled until preflight and Telegram E2E pass.
+
+## Production prerequisites
+- Vercel production SUPPORTFLOW_CREDENTIAL_ENCRYPTION_KEY must match the key that encrypted existing dashboard-managed credentials, or customers must reconnect securely. Do not rotate by simply replacing the key.
+- Vercel production SUPPORTFLOW_PUBLIC_WEBHOOK_BASE_URL must be the full production ingress prefix ending in /api/channels/telegram (not the legacy webhook).
+- Confirm Telegram webhook currently points to the intended production URL; a bot already configured to another webhook is deliberately rejected by Connect Bot.
+- Verify Supabase migrations, RLS tenant isolation, business ownership, AI opt-in, disabled channel behavior, human handoff, retries, job recovery and limits.
+- Run preview build, integration tests and one live non-production Telegram bot E2E before merge.
+- Enable SUPPORTFLOW_NEW_AI_ENABLED and SUPPORTFLOW_NEW_DELIVERY_ENABLED in production only after validation.
+- Remove legacy bot environment variables only after safe cutover.
+
+## Known limitations to resolve
+- Five-minute polling cannot guarantee immediate replies.
+- Worker retry/recovery and concurrency must be load-tested before serving many tenants.
+- Do not treat a READY build as proof of successful webhook, AI generation, or message delivery.
