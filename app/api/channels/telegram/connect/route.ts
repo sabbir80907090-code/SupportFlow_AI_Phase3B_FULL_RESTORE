@@ -19,7 +19,6 @@ export async function POST(req:NextRequest){
   const body=await req.json() as {token?:unknown};
   const token=typeof body.token==='string'?body.token.trim():'';
   if(!tokenPattern.test(token))return failure('Invalid Telegram token format');
-  if(token===process.env.TELEGRAM_BOT_TOKEN)return failure('This bot is reserved for the existing integration',409);
   const {data:existing,error:ee}=await auth.database.from('support_channel_connections').select('id').eq('business_id',auth.businessId).eq('channel','telegram').limit(1);
   if(ee)return failure('Connection lookup failed',503);
   if(existing?.length)return failure('Disconnect the existing Telegram bot first',409);
