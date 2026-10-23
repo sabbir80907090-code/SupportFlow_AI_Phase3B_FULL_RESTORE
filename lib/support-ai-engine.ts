@@ -20,6 +20,8 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
      .eq('business_id',job.business_id).single();
    if(ce||!conversation)throw Error('conversation_missing');
    if(conversation.ai_paused){finalState='skipped';return 'skipped';}
+   const {data:settings,error:settingsError}=await db.from('support_ai_settings').select('enabled').eq('business_id',job.business_id).maybeSingle();
+   if(settingsError||!settings?.enabled){finalState='skipped';return 'skipped';}
    const {data:messages,error:me}=await db.from('support_messages')
      .select('id,direction,text,created_at').eq('business_id',job.business_id)
      .eq('conversation_id',job.conversation_id).order('created_at',{ascending:false}).limit(16);
@@ -52,7 +54,8 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
    const {data:state,error:se}=await db.from('support_conversations').select('ai_paused')
      .eq('id',job.conversation_id).eq('business_id',job.business_id).single();
    if(le||se)throw Error('state_recheck_failed');
-   if(state?.ai_paused||latest?.id!==job.inbound_message_id){finalState='skipped';return 'skipped';}
+   const {data:latestSettings,error:latestSettingsError}=await db.from('support_ai_settings').select('enabled').eq('business_id',job.business_id).maybeSingle();
+   if(latestSettingsError||!latestSettings?.enabled||state?.ai_paused||latest?.id!==job.inbound_message_id){finalState='skipped';return 'skipped';}
    const {error:oe}=await db.from('support_outbox').upsert({
      business_id:job.business_id,conversation_id:job.conversation_id,
      channel:conversation.channel,recipient:conversation.sender_id,
