@@ -18,10 +18,18 @@ const sb=getSupabase();
 const input='w-full rounded-xl border border-line bg-canvas px-4 py-3 text-sm text-ink outline-none focus:border-brand';
 const button='rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50';
 const panel='rounded-2xl border border-line bg-panel p-6 shadow-soft';
-const errText=(e:unknown)=>e instanceof Error?e.message:String(e);
+const errText=(e:unknown):string=>{
+ if(e instanceof Error)return e.message;
+ if(e&&typeof e==='object'){
+  const x=e as {message?:unknown;details?:unknown;hint?:unknown;code?:unknown};
+  const details=[x.message,x.details,x.hint].filter(v=>typeof v==='string'&&v.trim()).join(' — ');
+  if(details)return details+(typeof x.code==='string'?' ['+x.code+']':'');
+ }
+ return typeof e==='string'?e:'Unexpected request error. Please retry.';
+};
 export default function Home(){
  const {theme,setTheme}=useTheme();
- const [ready,setReady]=useState(false),[user,setUser]=useState<User|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [ready,setReady]=useState(false),[user,setUser]=useState<User|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[workspaceLoading,setWorkspaceLoading]=useState(false),[workspaceError,setWorkspaceError]=useState('');
  const [authMode,setAuthMode]=useState<'login'|'signup'>('login'),[email,setEmail]=useState(''),[password,setPassword]=useState('');
  const [businesses,setBusinesses]=useState<Business[]>([]),[members,setMembers]=useState<Membership[]>([]),[businessId,setBusinessId]=useState(''),[newBusiness,setNewBusiness]=useState('');
  const [customers,setCustomers]=useState<Customer[]>([]),[orders,setOrders]=useState<Order[]>([]),[deliveries,setDeliveries]=useState<Delivery[]>([]),[tab,setTab]=useState<Tab>('Overview');
@@ -30,11 +38,12 @@ export default function Home(){
  const [filter,setFilter]=useState('all'),[search,setSearch]=useState(''),[showNewOrder,setShowNewOrder]=useState(false),[showNewCustomer,setShowNewCustomer]=useState(false);
  const membership=members.find(m=>m.business_id===businessId),activeBusiness=businesses.find(b=>b.id===businessId);
  const canDecide=membership?.role==='owner'||membership?.role==='admin';
- const loadBusinesses=useCallback(async()=>{if(!sb)return;
+ const loadBusinesses=useCallback(async()=>{if(!sb)return;setWorkspaceLoading(true);setWorkspaceError('');try{
   const [m,b]=await Promise.all([sb.from('business_members').select('business_id,role'),sb.from('businesses').select('id,name,created_at').order('created_at',{ascending:false})]);
   if(m.error)throw m.error;if(b.error)throw b.error;
   const bs=(b.data??[]) as Business[];setMembers((m.data??[]) as Membership[]);setBusinesses(bs);
   setBusinessId(prev=>bs.some(x=>x.id===prev)?prev:(bs[0]?.id??''));
+ }catch(e){setWorkspaceError(errText(e));throw e;}finally{setWorkspaceLoading(false);}
  },[]);
  const loadData=useCallback(async(id:string)=>{if(!sb||!id)return;
   const [c,o]=await Promise.all([
@@ -81,6 +90,8 @@ export default function Home(){
  if(!ready)return <main className="grid min-h-screen place-items-center"><LoaderCircle className="animate-spin"/></main>;
  if(!sb)return <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-4 p-8"><h1 className="text-3xl font-bold">SupportFlow AI — Setup needed</h1><p className="text-subtle">Configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in the hosting environment.</p></main>;
  if(!user)return <main className="flex min-h-screen items-center justify-center bg-canvas px-4"><div className={`${panel} w-full max-w-md`}><div className="mb-6 flex items-center justify-between"><div><h1 className="text-2xl font-extrabold text-brand">SupportFlow AI</h1><p className="text-xs text-subtle">Secure workspace access</p></div>{toggle}</div><div className="mb-5 flex rounded-xl bg-canvas p-1 text-sm"><button className={`flex-1 rounded-lg p-2 ${authMode==='login'?'bg-brand text-white':''}`} onClick={()=>setAuthMode('login')}>Login</button><button className={`flex-1 rounded-lg p-2 ${authMode==='signup'?'bg-brand text-white':''}`} onClick={()=>setAuthMode('signup')}>Register</button></div><form className="space-y-4" onSubmit={signIn}><label className="block text-sm font-semibold">Email<input type="email" required className={`${input} mt-2`} value={email} onChange={e=>setEmail(e.target.value)}/></label><label className="block text-sm font-semibold">Password<input type="password" required minLength={6} className={`${input} mt-2`} value={password} onChange={e=>setPassword(e.target.value)}/></label><button className={`${button} w-full`} disabled={busy}>{busy?'Please wait…':authMode==='login'?'Sign in':'Create account'}</button></form>{message&&<p role="alert" className="mt-4 text-sm text-rose-500">{message}</p>}</div></main>;
+ if(!businessId&&workspaceLoading)return <main className="grid min-h-screen place-items-center"><p>Loading your workspace…</p></main>;
+ if(!businessId&&workspaceError)return <main className="mx-auto max-w-lg p-8"><h1 className="text-2xl font-bold">Unable to load workspace</h1><p role="alert" className="mt-4 text-sm text-rose-500">{workspaceError}</p><button className={button+' mt-5'} onClick={()=>loadBusinesses().catch(e=>setWorkspaceError(errText(e)))}>Retry</button><button className="ml-4 text-sm underline" onClick={()=>sb.auth.signOut()}>Sign out</button></main>;
  if(!businessId)return <main className="mx-auto max-w-lg p-8"><h1 className="text-2xl font-bold">Create your workspace</h1><form onSubmit={createBusiness} className="mt-6 space-y-3"><input className={input} required minLength={2} maxLength={120} placeholder="Business name" value={newBusiness} onChange={e=>setNewBusiness(e.target.value)}/><button disabled={busy} className={button}>Create business</button></form>{message&&<p role="alert" className="mt-4 text-sm text-rose-500">{message}</p>}<button className="mt-6 text-sm text-subtle underline" onClick={()=>sb.auth.signOut()}>Sign out</button></main>;
  const navigation:[Tab,React.ReactNode][]=[['Overview',<LayoutDashboard size={17} key="o"/>],['Products',<Package size={17} key="prod"/>],['Orders',<Package size={17} key="p"/>],['Customers',<Users size={17} key="u"/>],['Inbox',<MessageCircle size={17} key="i"/>],['AI Agent',<Bot size={17} key="a"/>],['Analytics',<BarChart3 size={17} key="an"/>],['Settings',<Settings size={17} key="s"/>]];
  return <div className="min-h-screen bg-canvas md:flex"><aside className="w-full border-b border-line bg-panel p-5 md:min-h-screen md:w-64 md:border-b-0 md:border-r"><div className="mb-8"><h1 className="text-xl font-extrabold tracking-tight text-brand">◈ SupportFlow AI</h1><p className="mt-1 text-[11px] uppercase tracking-widest text-subtle">Workspace · Phase 3B</p></div><nav className="flex flex-wrap gap-1 md:flex-col">{navigation.map(([name,icon])=><button key={name} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold ${tab===name?'bg-brand text-white':'text-subtle hover:bg-canvas'}`} onClick={()=>setTab(name)}>{icon}{name}</button>)}</nav><div className="mt-8 rounded-xl border border-line bg-canvas p-3 text-xs text-subtle"><ShieldCheck size={17} className="mb-2 text-brand"/>Supabase Auth and RLS protect business data.</div></aside><main className="min-w-0 flex-1"><header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-panel px-5 py-4 md:px-9"><div><p className="text-xs text-subtle">Workspace / {tab}</p><h2 className="text-xl font-extrabold">{tab}</h2></div><div className="flex items-center gap-2"><select aria-label="Business" className="max-w-[190px] rounded-xl border border-line bg-canvas px-3 py-2 text-sm" value={businessId} onChange={e=>setBusinessId(e.target.value)}>{businesses.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>{toggle}<button className="rounded-xl border border-line p-3" title="Refresh data" onClick={()=>perform(async()=>{await loadBusinesses();await loadData(businessId);setMessage('Data refreshed.');})} disabled={busy}><RefreshCcw size={17}/></button><button className="rounded-xl border border-line p-3" title="Sign out" onClick={()=>sb.auth.signOut()}><LogOut size={17}/></button></div></header><div className="mx-auto max-w-7xl p-5 md:p-9"><div className="mb-7"><p className="text-sm font-semibold text-brand">{activeBusiness?.name}</p><h3 className="mt-1 text-3xl font-extrabold">{tab==='Overview'?'Business overview':tab}</h3><p className="mt-2 text-sm text-subtle">Supabase workspace · Role: {membership?.role??'unknown'}</p></div>
