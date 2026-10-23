@@ -4,32 +4,12 @@ import {adminDb,telegramSend} from '@/lib/telegram-server';
 
 export const runtime='nodejs';
 export const maxDuration=60;
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function authorized(req:NextRequest){
- const secret=process.env.CRON_SECRET??'';
- const actual=req.headers.get('authorization')??'';
- const expected='Bearer '+secret;
- const a=Buffer.from(actual),b=Buffer.from(expected);
- return secret.length>=24&&a.length===b.length&&timingSafeEqual(a,b);
-}
-function tokens():Record<string,string>|null{
- try{
-  const raw=JSON.parse(process.env.SUPPORTFLOW_TELEGRAM_BOT_TOKENS??'{}') as unknown;
-  if(!raw||typeof raw!=='object'||Array.isArray(raw))return null;
-  const entries=Object.entries(raw);
-  if(entries.some(([id,value])=>!uuid.test(id)||typeof value!=='string'||!/^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(value)))return null;
-  // Never allow this new worker to send through the existing production Telegram bot.
-  if(entries.some(([,value])=>value===process.env.TELEGRAM_BOT_TOKEN))return null;
-  return raw as Record<string,string>;
- }catch{return null;}
-}
 export async function GET(req:NextRequest){
  if(!authorized(req))return NextResponse.json({error:'Unauthorized'},{status:401});
  if(process.env.SUPPORTFLOW_NEW_AI_ENABLED!=='true'||process.env.SUPPORTFLOW_NEW_DELIVERY_ENABLED!=='true')
   return NextResponse.json({enabled:false,processed:0},{headers:{'Cache-Control':'no-store'}});
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
- const configured=tokens();
- if(!url||!key||!configured)return NextResponse.json({error:'Delivery not configured'},{status:503});
+ if(!url||!key||!process.env.SUPPORTFLOW_CREDENTIAL_ENCRYPTION_KEY)return NextResponse.json({error:'Delivery not configured'},{status:503});
  const db=adminDb(url,key);
  const {data:connections,error:ce}=await db.from('support_channel_connections')
   .select('id,business_id,channel,enabled').eq('channel','telegram').eq('enabled',true);
@@ -45,15 +25,15 @@ export async function GET(req:NextRequest){
  for(const [businessId,ids] of byBusiness){
   if(processed>=10)break;
   if(ids.length!==1)continue;
-  let deliveryToken=configured[ids[0]];
-  if(!deliveryToken){
+  let deliveryToken:string|undefined;
+  {
    const {data:stored}=await db.from('support_telegram_credentials').select('bot_token_ciphertext').eq('connection_id',ids[0]).maybeSingle();
    if(stored){
     try{const {decryptChannelCredential}=await import('@/lib/support-channel-credentials');deliveryToken=decryptChannelCredential(stored.bot_token_ciphertext,ids[0]);}
     catch{continue;}
    }
   }
-  if(!deliveryToken||deliveryToken===process.env.TELEGRAM_BOT_TOKEN)continue;
+  if(!deliveryToken)continue;
   const {data:claimed,error:claimError}=await db.rpc('claim_support_outbox',{p_business_id:businessId});
   if(claimError){console.error('Outbox claim failed',claimError.code);continue;}
   for(const item of claimed??[]){
