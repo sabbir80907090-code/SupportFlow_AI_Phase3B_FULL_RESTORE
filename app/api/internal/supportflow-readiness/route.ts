@@ -32,8 +32,11 @@ export async function GET(req:NextRequest){
  const issues:string[]=[];
  for(const c of connections??[]){
   grouped.set(c.business_id,(grouped.get(c.business_id)??0)+1);
-  if(typeof tokens[c.id]!=='string'||!String(tokens[c.id]).trim())issues.push('missing_delivery_token');
-  if(typeof secrets[c.id]!=='string'||String(secrets[c.id]).length<16)issues.push('missing_webhook_secret');
+  // Credentials created through Connect Bot are encrypted in the database, not env maps.
+  const {data:stored,error:credentialError}=await db.from('support_telegram_credentials')
+   .select('bot_token_ciphertext,webhook_secret_ciphertext').eq('connection_id',c.id).maybeSingle();
+  if(credentialError||(!stored&&!(typeof tokens[c.id]==='string'&&String(tokens[c.id]).trim())))issues.push('missing_delivery_token');
+  if(credentialError||(!stored&&!(typeof secrets[c.id]==='string'&&String(secrets[c.id]).length>=16)))issues.push('missing_webhook_secret');
   if(tokens[c.id]===process.env.TELEGRAM_BOT_TOKEN)issues.push('legacy_bot_conflict');
  }
  if([...grouped.values()].some(count=>count!==1))issues.push('ambiguous_business_mapping');
