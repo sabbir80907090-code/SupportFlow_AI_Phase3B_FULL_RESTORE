@@ -4,6 +4,12 @@ import {adminDb,telegramSend} from '@/lib/telegram-server';
 
 export const runtime='nodejs';
 export const maxDuration=60;
+function authorized(req:NextRequest){
+ const secret=process.env.CRON_SECRET??'';
+ const actual=Buffer.from(req.headers.get('authorization')??'');
+ const expected=Buffer.from('Bearer '+secret);
+ return secret.length>=24&&actual.length===expected.length&&timingSafeEqual(actual,expected);
+}
 export async function GET(req:NextRequest){
  if(!authorized(req))return NextResponse.json({error:'Unauthorized'},{status:401});
  if(process.env.SUPPORTFLOW_NEW_AI_ENABLED!=='true'||process.env.SUPPORTFLOW_NEW_DELIVERY_ENABLED!=='true')
