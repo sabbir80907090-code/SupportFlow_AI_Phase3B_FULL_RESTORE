@@ -27,6 +27,8 @@ export async function POST(req:NextRequest){
   const {data:duplicate,error:de}=await auth.database.from('support_channel_connections').select('id').eq('channel','telegram').eq('external_account_id',String(bot.id)).limit(1);
   if(de)return failure('Connection lookup failed',503);
   if(duplicate?.length)return failure('This Telegram bot is already connected',409);
+  const base=process.env.SUPPORTFLOW_PUBLIC_WEBHOOK_BASE_URL;
+  if(!base||!/^https:\/\//.test(base))return failure('Webhook base URL not configured',503);
   const currentWebhook=await telegramApi<{url:string}>(token,'getWebhookInfo');
   // Do not take over a bot whose webhook belongs to another application.
   if(currentWebhook.url)return failure('This bot already has a webhook. Use a new bot to avoid disrupting the existing integration.',409);
@@ -36,8 +38,6 @@ export async function POST(req:NextRequest){
   if(insertError)return failure('Unable to create connection',409);
   const {error:storeError}=await auth.database.from('support_telegram_credentials').insert({connection_id:id,bot_token_ciphertext:encrypted.token,webhook_secret_ciphertext:encrypted.secret});
   if(storeError){await auth.database.from('support_channel_connections').delete().eq('id',id);return failure('Unable to store credentials',503);}
-  const base=process.env.SUPPORTFLOW_PUBLIC_WEBHOOK_BASE_URL;
-  if(!base||!/^https:\/\//.test(base)){await auth.database.from('support_channel_connections').delete().eq('id',id);return failure('Webhook base URL not configured',503);}
   try{
    await telegramApi(token,'setWebhook',{url:base.replace(/\/$/,'')+'/api/channels/telegram/'+id,secret_token:secret,allowed_updates:['message'],drop_pending_updates:false});
   }catch{
