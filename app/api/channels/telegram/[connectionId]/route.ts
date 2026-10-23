@@ -4,7 +4,7 @@ import {adminDb} from '@/lib/telegram-server';
 
 export const runtime='nodejs';
 
-// Opt-in replacement ingress. Does not affect the legacy /api/telegram/webhook.
+// Dashboard-managed Telegram ingress. Credentials are stored per connection.
 type TelegramUpdate={
   update_id?:number;
   message?:{
@@ -14,28 +14,16 @@ type TelegramUpdate={
     from?:{first_name?:string;last_name?:string};
   };
 };
-type WebhookConfig=Record<string,string>;
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function secureEquals(a:string,b:string):boolean {
-  const left=Buffer.from(a);const right=Buffer.from(b);
-  return left.length===right.length && timingSafeEqual(left,right);
-}
-function webhookSecrets():WebhookConfig|null {
-  try {
-    const value=JSON.parse(process.env.SUPPORTFLOW_TELEGRAM_WEBHOOK_SECRETS??'{}') as unknown;
-    if(!value||typeof value!=='object'||Array.isArray(value))return null;
-    const entries=Object.entries(value);
-    if(entries.some(([key,secret])=>!uuid.test(key)||typeof secret!=='string'||secret.length<16||secret.length>256))return null;
-    return value as WebhookConfig;
-  } catch {return null;}
+ const left=Buffer.from(a),right=Buffer.from(b);
+ return left.length===right.length&&timingSafeEqual(left,right);
 }
 export async function POST(req:NextRequest,context:{params:Promise<{connectionId:string}>}) {
   const {connectionId}=await context.params;
   if(!uuid.test(connectionId))return NextResponse.json({error:'Not found'},{status:404});
-  const secrets=webhookSecrets();
-  let expected=secrets?.[connectionId];
-  if(!expected){
+  let expected:string|undefined;
+  {
     const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
     if(!url||!key)return NextResponse.json({error:'Not configured'},{status:503});
     const database=adminDb(url,key);
