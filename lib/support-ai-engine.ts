@@ -30,35 +30,36 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
    if(messages.find(m=>m.direction==='inbound')?.id!==job.inbound_message_id){
      finalState='skipped';return 'skipped';
    }
-   const {data:storedKeys,error:keysError}=await db.from('support_ai_api_keys').select('id,key_ciphertext').eq('business_id',job.business_id).eq('enabled',true).order('priority',{ascending:true}).limit(10);
+   const {data:storedKeys,error:keysError}=await db.from('support_ai_api_keys').select('id,provider,model,key_ciphertext').eq('business_id',job.business_id).eq('enabled',true).order('priority',{ascending:true}).limit(10);
    if(keysError)throw Error('business_keys_unavailable');
-   const apiKeys:string[]=[];
-   for(const stored of storedKeys??[]){try{apiKeys.push(decryptChannelCredential(stored.key_ciphertext,stored.id));}catch{console.error('Invalid business key ciphertext');}}
-   if(!apiKeys.length)throw Error('business_gemini_key_missing');
-   const {data:articles,error:ke}=await db.from('knowledge_articles').select('title,content')
-     .eq('business_id',job.business_id).limit(10);
+   if(!storedKeys?.length)throw Error('business_ai_key_missing');
+   const {data:articles,error:ke}=await db.from('knowledge_articles').select('title,content').eq('business_id',job.business_id).limit(10);
    if(ke)throw Error('knowledge_missing');
    const facts=(articles??[]).map(a=>a.title+': '+a.content).join('\n').slice(0,10000);
-   const model=process.env.GEMINI_MODEL??'gemini-2.5-flash';
-   let response:Response|undefined;
-   for(const apiKey of apiKeys){
-     const candidate=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{
-       method:'POST',headers:{'content-type':'application/json','x-goog-api-key':apiKey},
-       body:JSON.stringify({
-       systemInstruction:{parts:[{text:'Answer customer questions in their language. Never invent order status, prices or inventory. Ask for human help if facts are missing.\nBusiness knowledge:\n'+facts}]},
-       contents:[...messages].reverse().map(m=>({role:m.direction==='inbound'?'user':'model',parts:[{text:String(m.text).slice(0,4000)}]})),
-       generationConfig:{temperature:0.3,maxOutputTokens:512}
-     }),signal:AbortSignal.timeout(25000),cache:'no-store'
-     });
-     response=candidate;
-     if(candidate.ok)break;
-     // Fallback only for unavailable/limited credentials; do not retry arbitrary model errors.
-     if(![401,403,429,500,502,503,504].includes(candidate.status))break;
+   const instruction='Answer customer questions in their language. Never invent order status, prices or inventory. Ask for human help if facts are missing.\nBusiness knowledge:\n'+facts;
+   const history=[...messages].reverse().map(m=>({role:m.direction==='inbound'?'user':'assistant',text:String(m.text).slice(0,4000)}));
+   let answer='';
+   let lastError='provider_unavailable';
+   for(const stored of storedKeys){
+     let apiKey:string;
+     try{apiKey=decryptChannelCredential(stored.key_ciphertext,stored.id)}catch{lastError='credential_invalid';continue}
+     try{
+       let response:Response;
+       if(stored.provider==='gemini'){
+         response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(stored.model)+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({systemInstruction:{parts:[{text:instruction}]},contents:history.map(m=>({role:m.role==='user'?'user':'model',parts:[{text:m.text}]})),generationConfig:{temperature:0.3,maxOutputTokens:512}}),signal:AbortSignal.timeout(25000),cache:'no-store'});
+       }else if(stored.provider==='openai'){
+         response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+apiKey},body:JSON.stringify({model:stored.model,messages:[{role:'system',content:instruction},...history.map(m=>({role:m.role,content:m.text}))],max_completion_tokens:512}),signal:AbortSignal.timeout(25000),cache:'no-store'});
+       }else if(stored.provider==='anthropic'){
+         response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:stored.model,system:instruction,max_tokens:512,messages:history.map(m=>({role:m.role==='user'?'user':'assistant',content:m.text}))}),signal:AbortSignal.timeout(25000),cache:'no-store'});
+       }else{continue}
+       if(!response.ok){lastError='provider_http_'+response.status;if([400,404,422].includes(response.status))break;continue}
+       const payload=await response.json() as any;
+       answer=String(stored.provider==='gemini'?payload.candidates?.[0]?.content?.parts?.map((p:{text?:string})=>p.text??'').join(''):stored.provider==='openai'?payload.choices?.[0]?.message?.content:payload.content?.filter((p:{type:string})=>p.type==='text').map((p:{text?:string})=>p.text??'').join('')??'').trim();
+       if(answer)break;
+       lastError='empty_answer';
+     }catch{lastError='provider_request_failed'}
    }
-   if(!response?.ok)throw Error('gemini_http_'+(response?.status??'unavailable'));
-   const payload=await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>}}>} ;
-   const answer=payload.candidates?.[0]?.content?.parts?.map(p=>p.text??'').join('').trim();
-   if(!answer)throw Error('empty_answer');
+   if(!answer)throw Error(lastError);
    const {data:latest,error:le}=await db.from('support_messages').select('id')
      .eq('business_id',job.business_id).eq('conversation_id',job.conversation_id)
      .eq('direction','inbound').order('created_at',{ascending:false}).limit(1).maybeSingle();
