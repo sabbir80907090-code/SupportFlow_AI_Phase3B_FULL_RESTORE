@@ -31,13 +31,29 @@ export async function GET(req:NextRequest){
  }
  if([...grouped.values()].some(count=>count!==1))issues.push('ambiguous_business_mapping');
  const enabled=(connections??[]).length;
+ const [jobs,outbox,aiSettings,apiKeys]=await Promise.all([
+  db.from('support_ai_jobs').select('status'),
+  db.from('support_outbox').select('status'),
+  db.from('support_ai_settings').select('business_id,enabled'),
+  db.from('support_ai_api_keys').select('business_id').eq('enabled',true)
+ ]);
+ if(jobs.error||outbox.error||aiSettings.error||apiKeys.error)issues.push('worker_database_unavailable');
+ const aiEnabled=process.env.SUPPORTFLOW_NEW_AI_ENABLED==='true';
+ const deliveryEnabled=process.env.SUPPORTFLOW_NEW_DELIVERY_ENABLED==='true';
+ if(!aiEnabled)issues.push('ai_worker_flag_disabled');
+ if(!deliveryEnabled)issues.push('delivery_worker_flag_disabled');
+ const activeSettings=new Set((aiSettings.data??[]).filter(x=>x.enabled).map(x=>x.business_id));
+ const activeKeys=new Set((apiKeys.data??[]).map(x=>x.business_id));
+ for(const c of connections??[]){if(!activeSettings.has(c.business_id))issues.push('business_ai_disabled');if(!activeKeys.has(c.business_id))issues.push('business_ai_key_missing');}
+ const count=(rows:{status:string}[]|null|undefined,status:string)=>rows?.filter(x=>x.status===status).length??0;
  if(!enabled)issues.push('no_enabled_telegram_connection');
  // Never return tenant identifiers, tokens, secrets, or customer data.
  return NextResponse.json({
   ready:issues.length===0,enabledConnections:enabled,
   issues:[...new Set(issues)],
-  aiEnabled:process.env.SUPPORTFLOW_NEW_AI_ENABLED==='true',
-  deliveryEnabled:process.env.SUPPORTFLOW_NEW_DELIVERY_ENABLED==='true',
+  aiEnabled,deliveryEnabled,
+  queue:{queued:count(jobs.data,'queued'),processing:count(jobs.data,'processing'),failed:count(jobs.data,'failed'),completed:count(jobs.data,'completed')},
+  deliveryQueue:{queued:count(outbox.data,'queued'),processing:count(outbox.data,'processing')},
   note:'Read-only readiness report; not an end-to-end delivery test'
  },{headers:{'Cache-Control':'no-store'}});
 }
