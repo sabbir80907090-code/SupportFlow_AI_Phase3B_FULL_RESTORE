@@ -26,20 +26,20 @@ export function UnifiedInbox({businessId}:{businessId:string}){
  },[businessId,tick]);
  const active=conversations.find(c=>c.id===selected);
  const filtered=conversations.filter(c=>(channel==='all'||c.channel===channel)&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.toLowerCase())));
- return <div className="space-y-4">
-  <div className="flex flex-wrap items-center justify-between gap-3">
-   <div><h2 className="text-xl font-bold tracking-tight text-ink">Team inbox</h2><p className="mt-1 text-sm text-subtle">Manage conversations across your connected channels.</p></div>
+ return <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+  <div className="flex shrink-0 flex-wrap items-start justify-end gap-3">
+   <div><h2 className="text-right text-lg font-bold tracking-tight text-ink">Team inbox</h2><p className="mt-1 text-right text-xs text-subtle">Manage conversations across your connected channels.</p></div>
    <button type="button" onClick={()=>setTick(n=>n+1)} className="inline-flex items-center gap-2 rounded-xl border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-canvas"><RefreshCw size={15}/> Refresh</button>
   </div>
   {error&&<p role="alert" className="flex items-center gap-2 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-500"><AlertCircle size={16}/>{error}</p>}
-  <div className="grid h-[min(68vh,660px)] min-h-[420px] overflow-hidden rounded-2xl border border-line bg-panel lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+  <div className="grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-line bg-panel lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
    <aside className={`min-w-0 border-line lg:border-r ${active?'hidden lg:flex':'flex'} flex-col`}>
     <div className="space-y-3 border-b border-line p-4">
      <div className="flex items-center justify-between"><span className="text-sm font-semibold text-ink">Conversations</span><span className="rounded-full bg-canvas px-2.5 py-1 text-xs text-subtle">{filtered.length}</span></div>
      <label className="flex items-center gap-2 rounded-xl border border-line bg-canvas px-3"><Search size={16} className="shrink-0 text-subtle"/><input aria-label="Search conversations" placeholder="Search name or ID" value={search} onChange={e=>setSearch(e.target.value)} className="min-w-0 w-full bg-transparent py-2.5 text-sm text-ink outline-none"/></label>
      <select aria-label="Filter channel" className="w-full rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink" value={channel} onChange={e=>setChannel(e.target.value)}>{['all','telegram','messenger','whatsapp','website'].map(c=><option key={c} value={c}>{c==='all'?'All channels':channelName(c)}</option>)}</select>
     </div>
-    <div className="max-h-[65vh] flex-1 space-y-1 overflow-y-auto p-2">
+    <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-2">
      {filtered.map(c=><button type="button" key={c.id} onClick={()=>setSelected(c.id)} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition ${selected===c.id?'bg-brand/15 ring-1 ring-brand/30':'hover:bg-canvas'}`}>
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 text-sm font-bold text-ink">{c.display_name.trim().charAt(0).toUpperCase()||'?'}</span>
       <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-ink">{c.display_name}</span><span className="mt-1 block truncate text-xs text-subtle">{channelName(c.channel)} · {c.sender_id}</span>{c.ai_paused&&<span className="mt-1 inline-block text-xs text-amber-500">Human takeover</span>}</span>
@@ -62,12 +62,12 @@ function Thread({conversation,businessId,tick,refresh,back}:{conversation:Conver
  useEffect(()=>{endRef.current?.parentElement?.scrollTo({top:endRef.current.parentElement.scrollHeight,behavior:'smooth'})},[messages.length,queued.length,conversation.id]);
  async function send(e:React.FormEvent){e.preventDefault();const db=getSupabase();if(!db||busy||!draft.trim())return;setBusy(true);setError('');try{const {error}=await db.rpc('queue_support_reply',{p_conversation_id:conversation.id,p_text:draft.trim(),p_request_id:requestId});if(error)throw error;setDraft('');setRequestId(crypto.randomUUID());refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
  async function pause(){const db=getSupabase();if(!db||busy)return;setBusy(true);try{const {error}=await db.rpc('set_support_pause',{p_conversation_id:conversation.id,p_paused:!conversation.ai_paused});if(error)throw error;refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
- return <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+ return <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
   <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
    <div className="flex min-w-0 items-center gap-3"><button type="button" aria-label="Back to conversations" onClick={back} className="rounded-lg p-1.5 text-subtle hover:bg-canvas lg:hidden"><ChevronLeft size={20}/></button><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 font-bold text-ink">{conversation.display_name.trim().charAt(0).toUpperCase()||'?'}</span><div className="min-w-0"><h3 className="truncate text-sm font-bold text-ink sm:text-base">{conversation.display_name}</h3><p className="truncate text-xs text-subtle">{channelName(conversation.channel)} · {conversation.ai_paused?'AI paused — human mode':'AI enabled'}</p></div></div>
    <button type="button" disabled={busy} onClick={pause} className="inline-flex items-center gap-2 rounded-xl border border-line bg-canvas px-3 py-2 text-xs font-semibold text-ink hover:opacity-80 disabled:opacity-50">{conversation.ai_paused?<Play size={14}/>:<Pause size={14}/>} {conversation.ai_paused?'Resume AI':'Pause AI'}</button>
   </header>
-  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas/30 p-4 sm:p-6">
+  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-canvas/30 p-4 sm:p-6">
    {!messages.length&&!queued.length&&<p className="py-12 text-center text-sm text-subtle">No messages in this conversation yet.</p>}
    {messages.map(m=><div key={m.id} className={`flex ${m.direction==='outbound'?'justify-end':'justify-start'}`}><div className={`min-w-0 max-w-[92%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${m.direction==='outbound'?'rounded-br-md bg-brand text-white':'rounded-bl-md border border-line bg-panel text-ink'}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.text}</p><p className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70"><Clock size={11}/>{formatTime(m.created_at)}</p></div></div>)}
    {queued.map(q=><div key={q.id} className="flex justify-end"><div className="max-w-[92%] rounded-2xl rounded-br-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 sm:max-w-[78%]"><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{q.text}</p><p className="mt-2 text-xs text-amber-600">{q.status==='claimed'?'Delivery in progress':q.status==='needs_review'?'Delivery needs review':'Queued for delivery'}</p></div></div>)}
