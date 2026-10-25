@@ -9,7 +9,7 @@ Production repair: 2026-10-25. Supabase Edge ingress now enqueues AI jobs. Supab
 - Both processing and delivery are OFF unless SUPPORTFLOW_NEW_AI_ENABLED=true and SUPPORTFLOW_NEW_DELIVERY_ENABLED=true respectively.
 
 ## Scheduled invocation
-Apply database/supportflow_scheduler.sql for the central Supabase pg_cron scheduler. It checks queues every minute and invokes workers only when work exists. Generation and delivery are separate ticks, so replies typically take one to two minutes plus provider time.
+Apply database/supportflow_scheduler.sql for the central Supabase pg_cron scheduler. It checks queues every 10 seconds and invokes workers only when work exists. Generation and delivery are separate ticks, so replies typically take up to roughly 20 seconds of scheduler waiting plus provider time.
 
 Store the worker credential in Supabase Vault under supportflow_worker_cron_secret, matching Vercel CRON_SECRET. Never put the value in SQL committed to Git. Inspect cron.job_run_details and net._http_response for actual HTTP outcomes; a successful cron SQL run alone does not prove worker success.
 
@@ -31,7 +31,7 @@ Protect the production environment and main branch. Scheduled runs should use re
 - Remove legacy bot environment variables only after safe cutover.
 
 ## Known limitations to resolve
-- One-minute polling cannot guarantee immediate replies.
+- Ten-second polling cannot guarantee immediate replies.
 - Worker retry/recovery and concurrency must be load-tested before serving many tenants.
 - Do not treat a READY build as proof of successful webhook, AI generation, or message delivery.
 

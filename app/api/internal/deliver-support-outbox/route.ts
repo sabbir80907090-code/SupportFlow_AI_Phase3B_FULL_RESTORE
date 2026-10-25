@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {timingSafeEqual} from 'node:crypto';
+import {deliverMessengerOutbox} from '@/lib/messenger-delivery';
 import {adminDb,telegramSend} from '@/lib/telegram-server';
 
 export const runtime='nodejs';
@@ -40,7 +41,7 @@ export async function GET(req:NextRequest){
    }
   }
   if(!deliveryToken)continue;
-  const {data:claimed,error:claimError}=await db.rpc('claim_support_outbox',{p_business_id:businessId});
+  const {data:claimed,error:claimError}=await db.rpc('claim_support_outbox_channel',{p_business_id:businessId,p_channel:'telegram',p_limit:10-processed});
   if(claimError){console.error('Outbox claim failed',claimError.code);continue;}
   for(const item of claimed??[]){
    processed++;
@@ -67,5 +68,6 @@ export async function GET(req:NextRequest){
    if(processed>=10)break;
   }
  }
- return NextResponse.json({processed,needsReview:review},{headers:{'Cache-Control':'no-store'}});
+ const messenger=await deliverMessengerOutbox(10);
+ return NextResponse.json({processed:processed+messenger.processed,needsReview:review+messenger.needsReview},{headers:{'Cache-Control':'no-store'}});
 }

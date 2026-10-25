@@ -37,6 +37,7 @@ export default function Home(){
  const [authMode,setAuthMode]=useState<'login'|'signup'>('login'),[email,setEmail]=useState(''),[password,setPassword]=useState('');
  const [businesses,setBusinesses]=useState<Business[]>([]),[members,setMembers]=useState<Membership[]>([]),[businessId,setBusinessId]=useState(''),[newBusiness,setNewBusiness]=useState('');
  const [customers,setCustomers]=useState<Customer[]>([]),[orders,setOrders]=useState<Order[]>([]),[tab,setTab]=useState<Tab>('Overview');
+ useEffect(()=>{if(new URLSearchParams(window.location.search).has('messenger'))setTab('Channels');},[]);
  const [customerName,setCustomerName]=useState(''),[customerEmail,setCustomerEmail]=useState(''),[customerPhone,setCustomerPhone]=useState('');
  const [orderCustomer,setOrderCustomer]=useState(''),[product,setProduct]=useState(''),[amount,setAmount]=useState(''),[currency,setCurrency]=useState('BDT');
  const [filter,setFilter]=useState('all'),[search,setSearch]=useState(''),[showNewOrder,setShowNewOrder]=useState(false),[showNewCustomer,setShowNewCustomer]=useState(false);

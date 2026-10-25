@@ -76,7 +76,7 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
    const {error:oe}=await db.from('support_outbox').upsert({
      business_id:job.business_id,conversation_id:job.conversation_id,
      channel:conversation.channel,recipient:conversation.sender_id,
-     text:answer.slice(0,4096),request_id:job.id
+     text:answer.slice(0,conversation.channel==='messenger'?2000:4096),request_id:job.id
    },{onConflict:'business_id,request_id',ignoreDuplicates:true});
    if(oe)throw Error('outbox_enqueue_failed');
    finalState='completed';return 'queued';

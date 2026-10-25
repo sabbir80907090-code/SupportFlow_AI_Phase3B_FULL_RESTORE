@@ -1,9 +1,10 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {MessengerChannel} from '@/components/messenger-channel';
 import {getSupabase} from '@/lib/supabase';
 type Connection={id:string;display_name:string;external_account_id:string;enabled:boolean};
 const other=[
- {name:'Facebook Messenger',description:'Planned Facebook Page conversations in your inbox.'},
+ {name:'Instagram',description:'Planned Instagram professional account conversations.'},
  {name:'WhatsApp',description:'Planned WhatsApp Business conversations.'},
  {name:'Website chat',description:'Planned embeddable visitor chat widget.'}
 ];
@@ -44,7 +45,7 @@ export function Channels(){
     </div>
    </div>
   </div>}
-  <p className="text-sm text-subtle">Connect a Telegram bot to your business without editing server settings. Other channels are coming later.</p>
+  <p className="text-sm text-subtle">Connect your business channels and manage conversations from one inbox.</p>
   <section className="rounded-2xl border border-line bg-panel p-6">
    <div className="flex items-center justify-between gap-3"><h4 className="text-xl font-bold">Telegram</h4><span className="rounded-full bg-canvas px-3 py-1 text-xs">{loading?'Checking…':connection?.enabled?'Connected':'Not connected'}</span></div>
    <p className="mt-2 text-sm text-subtle">Create a bot using Telegram @BotFather, then paste its token here. Your business is selected automatically.</p>
@@ -56,6 +57,7 @@ export function Channels(){
     <button disabled={busy||loading||!token.trim()} className="rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy?'Verifying…':'Verify & Connect Bot'}</button>
    </form>}
   </section>
+  <MessengerChannel/>
   <div className="grid gap-5 md:grid-cols-2">{other.map(c=><div key={c.name} className="rounded-2xl border border-line bg-panel p-6"><span className="rounded-full bg-canvas px-3 py-1 text-xs text-subtle">Not implemented</span><h4 className="mt-4 text-xl font-bold">{c.name}</h4><p className="mt-3 text-sm text-subtle">{c.description}</p></div>)}</div>
  </div>;
 }
