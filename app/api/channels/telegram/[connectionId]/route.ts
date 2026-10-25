@@ -1,8 +1,10 @@
-import {NextRequest,NextResponse} from 'next/server';
+import {NextRequest,NextResponse,after} from 'next/server';
+import {processSupportAiJob} from '@/lib/support-ai-engine';
 import {timingSafeEqual} from 'node:crypto';
 import {adminDb} from '@/lib/telegram-server';
 
 export const runtime='nodejs';
+export const maxDuration=60;
 
 // Dashboard-managed Telegram ingress. Credentials are stored per connection.
 type TelegramUpdate={
@@ -81,10 +83,27 @@ export async function POST(req:NextRequest,context:{params:Promise<{connectionId
       .eq('business_id',connection.business_id).eq('conversation_id',data.conversationId)
       .eq('event_id',String(message.message_id)).eq('direction','inbound').maybeSingle();
     if(lookupError||!storedMessage)return NextResponse.json({error:'Message job lookup failed'},{status:503});
-    const {error:enqueueError}=await db.rpc('enqueue_support_ai_job',{
+    const {data:jobId,error:enqueueError}=await db.rpc('enqueue_support_ai_job',{
       p_business_id:connection.business_id,p_conversation_id:data.conversationId,p_message_id:storedMessage.id
     });
-    if(enqueueError)return NextResponse.json({error:'AI job enqueue failed'},{status:503});
+    if(enqueueError||!jobId)return NextResponse.json({error:'AI job enqueue failed'},{status:503});
+    // Process the newly queued message promptly without relying solely on a cron scheduler.
+    // The durable queue remains the fallback if this background execution fails.
+    if(!data.duplicate){
+      after(async()=>{
+        try{
+          const outcome=await processSupportAiJob(jobId);
+          if(outcome!=='queued')return;
+          const base=process.env.SUPPORTFLOW_PUBLIC_WEBHOOK_BASE_URL;
+          const cronSecret=process.env.CRON_SECRET;
+          if(!base||!cronSecret)return;
+          const endpoint=new URL('/api/internal/deliver-support-outbox',base);
+          if(endpoint.protocol!=='https:')return;
+          const response=await fetch(endpoint,{headers:{authorization:'Bearer '+cronSecret},cache:'no-store',signal:AbortSignal.timeout(20000)});
+          if(!response.ok)console.error('SupportFlow immediate delivery failed',response.status);
+        }catch(error){console.error('SupportFlow immediate AI processing failed',error instanceof Error?error.message:'unknown');}
+      });
+    }
   }
   return NextResponse.json({ok:true,duplicate:Boolean(data?.duplicate)},{headers:{'Cache-Control':'no-store'}});
 }
