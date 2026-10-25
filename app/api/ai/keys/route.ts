@@ -17,7 +17,7 @@ export async function POST(req:NextRequest){
  try{input=await req.json()}catch{return failure('Invalid request')}
  const label=String(input.label??'').trim(),apiKey=String(input.apiKey??'').trim();
  const provider=input.provider??'gemini';
- const defaults:Record<string,string>={gemini:'gemini-2.5-flash',openai:'gpt-4.1-mini',anthropic:'claude-sonnet-4-5'};
+ const defaults:Record<string,string>={gemini:'gemini-flash-lite-latest',openai:'gpt-4.1-mini',anthropic:'claude-sonnet-4-5'};
  if(!Object.hasOwn(defaults,provider))return failure('Unsupported AI provider');
  const model=String(input.model??defaults[provider]).trim();
  if(label.length<1||label.length>80||model.length<2||model.length>100||!/^[a-zA-Z0-9._:-]+$/.test(model)||apiKey.length<20||apiKey.length>512)return failure('Invalid label, model or API key');

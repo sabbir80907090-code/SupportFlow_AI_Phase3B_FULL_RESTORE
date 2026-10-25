@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
 type Provider='gemini'|'openai'|'anthropic';
 type Key={id:string;label:string;provider:Provider;model:string;key_hint:string;priority:number;enabled:boolean};
-const models:Record<Provider,string[]>={gemini:['gemini-2.5-flash','gemini-2.5-pro','gemini-2.0-flash'],openai:['gpt-4.1-mini','gpt-4.1','gpt-4o-mini'],anthropic:['claude-sonnet-4-5','claude-haiku-4-5','claude-opus-4-1']};
+const models:Record<Provider,string[]>={gemini:['gemini-flash-lite-latest','gemini-flash-latest','gemini-pro-latest'],openai:['gpt-4.1-mini','gpt-4.1','gpt-4o-mini'],anthropic:['claude-sonnet-4-5','claude-haiku-4-5','claude-opus-4-1']};
 const names:Record<Provider,string>={gemini:'Google Gemini',openai:'OpenAI',anthropic:'Anthropic Claude'};
 export function GeminiKeyManager({canEdit}:{canEdit:boolean}){
  const [keys,setKeys]=useState<Key[]>([]),[adding,setAdding]=useState(false),[label,setLabel]=useState('Primary AI Key'),[secret,setSecret]=useState(''),[provider,setProvider]=useState<Provider>('gemini'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');

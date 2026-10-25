@@ -1,7 +1,7 @@
 name: SupportFlow AI background workers
 on:
-  schedule:
-    - cron: '*/5 * * * *'
+  # Production scheduling is owned by Supabase pg_cron (database/supportflow_scheduler.sql).
+  # Keep this workflow as an explicitly configured manual fallback only.
   workflow_dispatch:
 
 permissions:

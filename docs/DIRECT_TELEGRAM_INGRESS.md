@@ -1,19 +1,14 @@
-# Direct Telegram ingress (experimental; disabled by default)
+# Dashboard-managed Telegram ingress
 
-New endpoint: `POST /api/channels/telegram/{connectionId}`.
+Production Telegram updates currently enter through the Supabase Edge Function:
+`/functions/v1/supportflow-telegram-webhook/{connectionId}`.
+Its versioned source is `supabase/functions/supportflow-telegram-webhook/index.ts`.
+The Next.js `/api/channels/telegram/{connectionId}` route is an alternative ingress.
 
-## Prerequisites
-1. Apply `database/n8n_free_channel_connections.sql` to a **staging** Supabase database after the core schema and `database/unified_inbox.sql`.
-2. Create a `support_channel_connections` row on the server for a verified Telegram bot, with `channel='telegram'`, its correct `business_id` and `enabled=true`. Do not enable connections from untrusted client input.
-3. Set `SUPPORTFLOW_TELEGRAM_WEBHOOK_SECRETS` **server-side** to JSON mapping connection UUIDs to random secrets of at least 16 characters, e.g. `{"<connection-uuid>":"<random-secret>"}`. Never commit real values.
-4. Register that bot's webhook with Telegram using the endpoint URL and its matching `secret_token`. Telegram permits one webhook URL per bot; do not replace a production webhook without an approved cutover plan.
+The dashboard verifies and connects each bot. The Edge Function checks the per-connection webhook secret hash, resolves the enabled tenant connection, ingests private-chat text idempotently, and enqueues a tenant-scoped AI job when that business has enabled auto reply. Human handoff pauses the conversation and does not enqueue an AI response. Database failures return 503 so Telegram can retry.
 
-The route checks the header with constant-time comparison, bounds the payload, looks up the enabled business-scoped connection, and inserts private-chat text into `ingest_support_message` using a stable message ID. Duplicate events are not inserted twice.
+Central Supabase pg_cron invokes the existing Vercel AI and delivery workers every minute when their queues contain pending work. See `database/supportflow_scheduler.sql` and `docs/AI_WORKER_ROLLOUT.md`. No customer-specific GitHub or Vercel setup is needed.
 
-## Limitations
-- **Inbound only**: no AI generation, outbox delivery, attachment handling or worker execution yet.
-- No browser-facing connection-management API; connections must be provisioned by a trusted operator.
-- Telegram webhook secret is an authentication factor, not proof of bot ownership. Verify bot ownership during provisioning and restrict secrets to that bot.
-- Only Telegram private-chat text messages are supported; other updates are acknowledged and ignored.
-- The legacy `/api/telegram/webhook` endpoint is unchanged. No live traffic was migrated.
-- Requires staging tests for valid/invalid secrets, cross-tenant isolation, duplicate updates and database failures before use.
+The function verifies Telegram's secret itself, so its Supabase JWT verification remains disabled. Never expose service-role credentials or decrypted bot/API keys to browsers.
+
+Deploy Edge source separately from the Next.js site; a Vercel deploy does not deploy Supabase functions. Run `node --test tests/telegram-edge-webhook.test.mjs` before deployment. Verify actual Telegram webhook URL, job creation, provider completion, outbox delivery, and duplicate handling afterward.

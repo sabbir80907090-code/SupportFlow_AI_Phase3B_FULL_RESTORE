@@ -1,6 +1,6 @@
 # SupportFlow AI worker production rollout
 
-Status: NOT LIVE until main deployment, credentials, gates, and real end-to-end verification succeed.
+Production repair: 2026-10-25. Supabase Edge ingress now enqueues AI jobs. Supabase pg_cron is the primary scheduler; Vercel hosts the authenticated workers.
 
 ## Current worker architecture
 - GET /api/internal/process-ai-jobs: authenticated by CRON_SECRET; processes queued tenant-scoped jobs using each business's encrypted enabled provider keys.
@@ -9,7 +9,11 @@ Status: NOT LIVE until main deployment, credentials, gates, and real end-to-end 
 - Both processing and delivery are OFF unless SUPPORTFLOW_NEW_AI_ENABLED=true and SUPPORTFLOW_NEW_DELIVERY_ENABLED=true respectively.
 
 ## Scheduled invocation
-The GitHub Actions workflow .github/workflows/supportflow-workers.yml invokes both endpoints every five minutes on default branch main only. GitHub schedule timing is best effort and may be delayed; it is NOT real-time. It will not execute while the workflow exists only on a feature branch.
+Apply database/supportflow_scheduler.sql for the central Supabase pg_cron scheduler. It checks queues every minute and invokes workers only when work exists. Generation and delivery are separate ticks, so replies typically take one to two minutes plus provider time.
+
+Store the worker credential in Supabase Vault under supportflow_worker_cron_secret, matching Vercel CRON_SECRET. Never put the value in SQL committed to Git. Inspect cron.job_run_details and net._http_response for actual HTTP outcomes; a successful cron SQL run alone does not prove worker success.
+
+The GitHub Actions workflow is now manual-only, as an optional fallback. Its previous scheduled runs failed because its production URL and secret were missing.
 
 Set these values through GitHub repository environment **production**, never in source:
 - Variable SUPPORTFLOW_WORKER_BASE_URL = verified HTTPS production origin, no trailing slash.
@@ -27,6 +31,13 @@ Protect the production environment and main branch. Scheduled runs should use re
 - Remove legacy bot environment variables only after safe cutover.
 
 ## Known limitations to resolve
-- Five-minute polling cannot guarantee immediate replies.
+- One-minute polling cannot guarantee immediate replies.
 - Worker retry/recovery and concurrency must be load-tested before serving many tenants.
 - Do not treat a READY build as proof of successful webhook, AI generation, or message delivery.
+
+## 2026-10-25 repair findings
+- The deployed Supabase webhook previously returned `ai: disabled` unconditionally and never enqueued jobs. Its source is now versioned and tested.
+- GitHub's scheduler lacked its URL/secret. The central scheduler now uses Supabase pg_cron and Vault; GitHub remains manual-only.
+- Gemini listed `gemini-2.5-flash` but rejected actual generation with HTTP 404 (no longer available to new users). A live generation test succeeded with `gemini-flash-lite-latest`; this is the new dashboard/server default. Existing affected business keys were updated to that verified model.
+- Readiness and authenticated worker calls returned HTTP 200. Webhook replay returned duplicate=true without creating another job.
+- Secret values are provisioned separately and are not present in the repository.
