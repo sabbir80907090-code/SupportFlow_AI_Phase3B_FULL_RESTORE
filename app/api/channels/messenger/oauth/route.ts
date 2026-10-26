@@ -7,6 +7,8 @@ export async function POST(req:NextRequest){
  try{
   const auth=await authorizedBusiness(req);if(!auth)return failure('Sign in as the business owner',403);
   const config=metaConfig();if(!config)return failure('Facebook connection is awaiting platform setup.',503);
+  // OAuth cookies are host-only. Always start login on the canonical callback host.
+  if(req.nextUrl.origin!==config.origin)return NextResponse.json({error:'Open the production dashboard to connect Facebook',canonicalUrl:config.origin+'/'},{status:409,headers:{'Cache-Control':'no-store'}});
   const state=randomBytes(32).toString('hex'),id=randomUUID();
   // Remove expired grants before issuing a new, short-lived authorization.
   await auth.database.from('support_messenger_oauth').delete().eq('business_id',auth.businessId);
