@@ -8,11 +8,23 @@ export function MessengerChannel(){
  const [configured,setConfigured]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false),[error,setError]=useState('');
  async function request(path:string,method='GET',body?:object){
   const sb=getSupabase();if(!sb)throw Error('Sign in required');const {data}=await sb.auth.getSession();if(!data.session)throw Error('Sign in required');
-  const response=await fetch('/api/channels/messenger/'+path,{method,headers:{authorization:'Bearer '+data.session.access_token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store'});
+  const response=await fetch('/api/channels/messenger/'+path,{method,headers:{authorization:'Bearer '+data.session.access_token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store',credentials:'same-origin'});
   const result=await response.json();if(!response.ok)throw Error(result.error||'Facebook connection failed');return result;
  }
  async function refresh(){try{const data=await request('connect');setConfigured(data.configured);setConnection(data.connection);setPages(data.pages||[]);setPage(data.pages?.[0]?.id||'');}catch(e){setError(e instanceof Error?e.message:'Could not load Messenger');}finally{setLoading(false);}}
- useEffect(()=>{void refresh();if(new URLSearchParams(window.location.search).get('messenger')==='error')setError('Facebook login was cancelled or failed. Please try again.');},[]);
+ useEffect(()=>{
+  void refresh();
+  const status=new URLSearchParams(window.location.search).get('messenger');
+  const messages:Record<string,string>={
+   error:'Facebook login was cancelled or failed. Please try again.',
+   canonical:'You are now on the correct site for Facebook login. Sign in here, then select Continue with Facebook.',
+   cookies:'Your browser did not save the login cookie. Allow cookies for this site, then select Continue with Facebook.',
+   'session-missing':'The Facebook login session is missing or expired. Keep this browser open and select Continue with Facebook to start a new session.',
+   'state-mismatch':'A different Facebook login was started in this browser. Close the older login tab and start once from here.',
+   expired:'Facebook login expired or was already used. Select Continue with Facebook to start again.'
+  };
+  if(status&&messages[status])setError(messages[status]);
+ },[]);
  async function act(action:'login'|'connect'|'disconnect'){
   setBusy(true);setError('');try{
    if(action==='login'){const data=await request('oauth','POST');window.location.assign(data.url);return;}

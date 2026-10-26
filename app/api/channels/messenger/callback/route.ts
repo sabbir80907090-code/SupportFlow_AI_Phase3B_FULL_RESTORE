@@ -6,13 +6,13 @@ import {secureEqual} from '@/lib/messenger-security';
 export const runtime='nodejs';
 export async function GET(req:NextRequest){
  const config=metaConfig();if(!config)return new Response('Facebook platform setup incomplete',{status:503});
- const redirect=(status:string)=>NextResponse.redirect(config.origin+'/?messenger='+status);
+ const redirect=(status:string)=>NextResponse.redirect(config.origin+'/?messenger='+status,{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
  const state=req.nextUrl.searchParams.get('state')??'',cookie=req.cookies.get(oauthCookie)?.value??'';
- if(!/^[a-f0-9]{64}$/.test(state)||!secureEqual(state,cookie))return new Response('Invalid login state',{status:400});
+ if(!/^[a-f0-9]{64}$/.test(state)||!secureEqual(state,cookie))return redirect(cookie?'state-mismatch':'session-missing');
  const database=db();
  const {data:session,error}=await database.from('support_messenger_oauth').update({status:'exchanging'})
   .eq('state_hash',stateHash(state)).eq('status','pending').gt('expires_at',new Date().toISOString()).select('id').maybeSingle();
- if(error||!session)return new Response('Login expired. Start again from Channels.',{status:400});
+ if(error||!session)return redirect('expired');
  const fail=async()=>{await database.from('support_messenger_oauth').delete().eq('id',session.id);const r=redirect('error');r.cookies.delete(oauthCookie);return r;};
  if(req.nextUrl.searchParams.has('error'))return fail();
  const code=req.nextUrl.searchParams.get('code');if(!code||code.length>4096)return fail();
