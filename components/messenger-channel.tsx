@@ -9,13 +9,21 @@ export function MessengerChannel(){
  async function request(path:string,method='GET',body?:object){
   const sb=getSupabase();if(!sb)throw Error('Sign in required');const {data}=await sb.auth.getSession();if(!data.session)throw Error('Sign in required');
   const response=await fetch('/api/channels/messenger/'+path,{method,headers:{authorization:'Bearer '+data.session.access_token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store'});
-  const result=await response.json();if(!response.ok)throw Error(result.error||'Facebook connection failed');return result;
+  const result=await response.json();
+  if(response.status===409&&path==='oauth'&&method==='POST'&&typeof result.canonicalUrl==='string'){
+   const canonical=new URL(result.canonicalUrl);
+   if(canonical.protocol==='https:'&&canonical.hostname.endsWith('.vercel.app')){
+    window.location.assign(canonical.origin+window.location.pathname+window.location.search);
+    return {redirecting:true};
+   }
+  }
+  if(!response.ok)throw Error(result.error||'Facebook connection failed');return result;
  }
  async function refresh(){try{const data=await request('connect');setConfigured(data.configured);setConnection(data.connection);setPages(data.pages||[]);setPage(data.pages?.[0]?.id||'');}catch(e){setError(e instanceof Error?e.message:'Could not load Messenger');}finally{setLoading(false);}}
  useEffect(()=>{void refresh();if(new URLSearchParams(window.location.search).get('messenger')==='error')setError('Facebook login was cancelled or failed. Please try again.');},[]);
  async function act(action:'login'|'connect'|'disconnect'){
   setBusy(true);setError('');try{
-   if(action==='login'){const data=await request('oauth','POST');window.location.assign(data.url);return;}
+   if(action==='login'){const data=await request('oauth','POST');if(data.redirecting)return;window.location.assign(data.url);return;}
    await request('connect',action==='disconnect'?'DELETE':'POST',action==='connect'?{pageId:page}:undefined);setConfirm(false);await refresh();
   }catch(e){setError(e instanceof Error?e.message:'Facebook request failed');}finally{setBusy(false);}
  }
