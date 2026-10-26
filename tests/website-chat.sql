@@ -1,0 +1,36 @@
+begin;
+do $$
+declare b uuid; s uuid; r jsonb; c uuid; v uuid; n integer; rejected boolean=false;
+begin
+ select id into b from public.businesses order by created_at limit 1;
+ insert into public.support_websites(business_id,origin) values(b,'https://example.com') returning id into s;
+ perform public.website_chat(s,repeat('a',64),'start');
+ perform public.website_chat(s,repeat('b',64),'start');
+ r=public.website_chat(s,repeat('a',64),'send','Website test',repeat('x',20));
+ r=public.website_chat(s,repeat('a',64),'send','Website test',repeat('x',20));
+ if jsonb_array_length(r->'messages')<>1 then raise exception 'Duplicate ingest';end if;
+ r=public.website_chat(s,repeat('b',64),'poll');
+ if jsonb_array_length(r->'messages')<>0 then raise exception 'Visitor isolation failed';end if;
+ begin perform public.website_chat(s,repeat('c',64),'poll');exception when others then rejected=true;end;
+ if not rejected then raise exception 'Missing token accepted';end if;
+ select id into v from public.support_website_visitors where site_id=s and token_hash=repeat('a',64);
+ select id into c from public.support_conversations where business_id=b and channel='website' and sender_id=v::text;
+ insert into public.support_outbox(business_id,conversation_id,channel,recipient,text,request_id) values(b,c,'website',v::text,'Manual reply test',gen_random_uuid());
+ r=public.website_chat(s,repeat('a',64),'poll');
+ if jsonb_array_length(r->'messages')<>2 then raise exception 'Reply not published';end if;
+ r=public.website_chat(s,repeat('a',64),'poll');
+ if jsonb_array_length(r->'messages')<>2 then raise exception 'Duplicate reply';end if;
+ perform public.website_chat(s,repeat('a',64),'send','Human please',repeat('y',20),true);
+ if not exists(select 1 from public.support_conversations where id=c and ai_paused) then raise exception 'Handoff failed';end if;
+ update public.support_website_visitors set minute_count=6 where id=v;
+ rejected=false;
+ begin perform public.website_chat(s,repeat('a',64),'send','Rate test',repeat('z',20));exception when others then rejected=true;end;
+ if not rejected then raise exception 'Rate limit failed';end if;
+ update public.support_websites set enabled=false where id=s;
+ rejected=false;
+ begin perform public.website_chat(s,repeat('a',64),'poll');exception when others then rejected=true;end;
+ if not rejected then raise exception 'Disabled site accepted';end if;
+ if has_function_privilege('anon','public.website_chat(uuid,text,text,text,text,boolean)','execute') or has_table_privilege('authenticated','public.support_website_visitors','select') then raise exception 'Public access to visitor credentials';end if;
+end $$;
+select 'Website isolation, duplicate handling, manual delivery, handoff, rate limits and disable checks passed' as result;
+rollback;

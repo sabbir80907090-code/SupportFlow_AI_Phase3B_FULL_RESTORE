@@ -1,12 +1,12 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {WebsiteChannel} from '@/components/website-channel';
 import {MessengerChannel} from '@/components/messenger-channel';
 import {getSupabase} from '@/lib/supabase';
 type Connection={id:string;display_name:string;external_account_id:string;enabled:boolean};
 const other=[
  {name:'Instagram',description:'Planned Instagram professional account conversations.'},
- {name:'WhatsApp',description:'Planned WhatsApp Business conversations.'},
- {name:'Website chat',description:'Planned embeddable visitor chat widget.'}
+ {name:'WhatsApp',description:'Planned WhatsApp Business conversations.'}
 ];
 export function Channels(){
  const [token,setToken]=useState(''),[connection,setConnection]=useState<Connection|null>(null),[showDeleteDialog,setShowDeleteDialog]=useState(false);
@@ -58,6 +58,7 @@ export function Channels(){
    </form>}
   </section>
   <MessengerChannel/>
+  <WebsiteChannel/>
   <div className="grid gap-5 md:grid-cols-2">{other.map(c=><div key={c.name} className="rounded-2xl border border-line bg-panel p-6"><span className="rounded-full bg-canvas px-3 py-1 text-xs text-subtle">Not implemented</span><h4 className="mt-4 text-xl font-bold">{c.name}</h4><p className="mt-3 text-sm text-subtle">{c.description}</p></div>)}</div>
  </div>;
 }
