@@ -51,3 +51,9 @@ test('unauthenticated import is rejected before any URL request or body read',as
  );
  const response=await post({text:()=>{throw Error('Should not read unauthenticated input')}});assert.equal(response.status,403);assert.equal(fetched,false);
 });
+test('Techland category uses per-card selling price and never footer stock or savings',()=>{
+ const card='<div wire:key="listing-card-123"><div><a href="/ram-8gb"><img src="/ram.webp"></a><a href="/ram-8gb"><h2 class="v2-card-title">Example 8GB RAM</h2></a><ul><li>Capacity: 8GB</li></ul><div>Save: ৳500</div><div class="text-red-600 font-bold">৳7,700</div><div class="line-through">৳8,200</div></div></div>';
+ const [p]=parseProductPage(card+'<footer>Out of stock FAQ</footer>','https://www.techlandbd.com/pc-components/shop-desktop-ram');
+ assert.equal(p.name,'Example 8GB RAM');assert.equal(p.price,'7700');assert.equal(p.currency,'BDT');assert.equal(p.description,'Capacity: 8GB');assert.equal(p.stock_quantity,'');assert.equal(p.sourceUrl,'https://www.techlandbd.com/ram-8gb');
+ assert.deepEqual(parseProductPage(card,'https://other.example/category'),[]);
+});

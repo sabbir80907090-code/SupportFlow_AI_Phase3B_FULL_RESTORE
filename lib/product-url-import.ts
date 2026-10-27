@@ -20,6 +20,25 @@ export function parseProductPage(html:string,sourceUrl:string):ImportedProduct[]
   if(!/\btype\s*=\s*["']application\/ld\+json["']/i.test(match[1]))continue;
   try{walk(JSON.parse(match[2]))}catch{/* Other blocks can still contain valid product data. */}
  }
+ // Techland category cards expose their facts in HTML rather than Product JSON-LD.
+ if(!products.length&&['techlandbd.com','www.techlandbd.com'].includes(new URL(sourceUrl).hostname)){
+  const cards=[...html.matchAll(/<div\b[^>]*\bwire:key=["']listing-card-\d+["'][^>]*>/gi)];
+  for(let i=0;i<Math.min(cards.length,20);i++){
+   const remaining=html.slice(cards[i].index);let depth=0,end=remaining.length;
+   for(const tag of remaining.matchAll(/<\/?div\b[^>]*>/gi)){depth+=/^<\//.test(tag[0])?-1:1;if(depth===0){end=tag.index!+tag[0].length;break}}
+   const card=remaining.slice(0,end);
+   const title=card.match(/<h2\b[^>]*class=["'][^"']*v2-card-title[^"']*["'][^>]*>([\s\S]*?)<\/h2>/i);
+   if(!title)continue;
+   const anchor=[...card.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)].find(a=>a[2].includes('v2-card-title'));
+   const imageTag=card.match(/<img\b[^>]*src=["']([^"']+)["']/i);
+   const priceTag=card.match(/<div\b[^>]*class=["'][^"']*\btext-red-600\b[^"']*["'][^>]*>([^<]*)<\/div>/i);
+   const rawPrice=text(priceTag?.[1],50).replace(/^৳\s*/,'').replace(/,/g,'');
+   const description=[...card.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].slice(0,8).map(m=>text(m[1],500)).join(' | ');
+   const productUrl=image(anchor?.[1],sourceUrl);
+   if(!productUrl||new URL(productUrl).origin!==new URL(sourceUrl).origin)continue;
+   products.push({name:text(title[1],160),description,sku:'',category:'',price:amount(rawPrice),currency:amount(rawPrice)!==''?'BDT':'',stock_quantity:/out of stock/i.test(text(card,12000))?'0':'',imageUrl:image(imageTag?.[1],sourceUrl),sourceUrl:productUrl});
+  }
+ }
  if(!products.length){
   const meta:Record<string,string>={};
   for(const tag of html.matchAll(/<meta\b[^>]*>/gi)){
