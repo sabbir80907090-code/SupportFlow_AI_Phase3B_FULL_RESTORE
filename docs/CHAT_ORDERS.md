@@ -1,6 +1,6 @@
 # Chat order intake
 
-The shared Telegram/Messenger/website AI worker collects a single product order, notifies the customer of missing product/quantity/name/Bangladesh mobile/email/address, and persists a private draft across turns. Optional variant notes (size, colour) are retained. The AI emits internal JSON; the server filters contact details against customer text and checks product IDs against the active tenant catalog. Malformed JSON fails closed rather than creating an order or sending raw JSON.
+The shared Telegram/Messenger/website AI worker collects a single product order, notifies the customer of missing product/quantity/name/Bangladesh mobile/email/address, and persists a private draft across turns. Optional variant notes (size, colour) are retained. The AI emits internal JSON; the server filters contact details against customer text and checks product IDs against the active tenant catalog. Gemini requests enforce a JSON response schema. If a model still returns malformed JSON, a safe localized fallback reply is queued without changing an order; the job records response_format_fallback for diagnosis. Raw JSON and unverified order confirmations are never forwarded.
 
 The server builds the summary and acknowledgement. After the summary is delivered to the channel, the customer must reply `CONFIRM` (also accepts exact yes/হ্যাঁ/কনফার্ম/অর্ডার কনফার্ম/নিশ্চিত). Buying intent by itself never submits an order. Corrections require a fresh summary. `CANCEL` / `বাতিল` clears an unsubmitted draft, and `NEW ORDER` / `নতুন অর্ডার` starts another draft. Unsubmitted drafts expire after 24 hours.
 
@@ -10,6 +10,6 @@ Saved orders appear in the existing Orders dashboard with customer name, phone, 
 
 ## Validation
 
-28 Node tests and production Next.js build pass. The SQL transaction test covers summary-before-consent, undelivered summary rejection, price-change consent, atomic pending order creation, replay and repeated CONFIRM deduplication, conversation separation, insufficient stock, stale jobs, paused AI, draft cancellation, claim-token authentication and no browser access. Test data and outbox rows roll back; no test messages are sent to a customer. Actual provider extraction and Telegram-device conversation remain to be verified with an owner-driven test.
+29 Node tests and production Next.js build pass. The SQL transaction test covers summary-before-consent, undelivered summary rejection, price-change consent, atomic pending order creation, replay and repeated CONFIRM deduplication, conversation separation, insufficient stock, stale jobs, paused AI, draft cancellation, claim-token authentication and no browser access. Test data and outbox rows roll back; no test messages are sent to a customer. Actual provider extraction and Telegram-device conversation remain to be verified with an owner-driven test.
 
 Apply database/support_chat_orders.sql before deploying the worker code. No workflow token is required for native chat orders.

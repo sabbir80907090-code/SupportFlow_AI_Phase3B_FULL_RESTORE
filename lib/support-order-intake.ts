@@ -31,3 +31,10 @@ export function parseOrderAnswer(answer:string,products:CatalogProduct[],custome
  return {reply:parsed.reply.trim(),patch:Object.keys(patch).length?patch:null};
 }
 export function isOrderControl(text:string){return /^(confirm|confirm order|yes|হ্যাঁ|কনফার্ম|অর্ডার কনফার্ম|নিশ্চিত|cancel|বাতিল|new order|নতুন অর্ডার)[.!।\s]*$/i.test(text.trim());}
+
+/** Gemini's constrained JSON output: ordinary chat and order extraction share one envelope. */
+export const orderResponseSchema={type:'OBJECT',properties:{reply:{type:'STRING'},order:{type:'OBJECT',nullable:true,properties:{product_id:{type:'STRING'},quantity:{type:'INTEGER'},name:{type:'STRING'},phone:{type:'STRING'},email:{type:'STRING'},address:{type:'STRING'},variant:{type:'STRING'}}}},required:['reply','order']};
+export function safeOrderFormatFallback(text:string,bengali:boolean){
+ if(/^(hello|hi|hey|হ্যালো|হাই|সালাম|আসসালামু আলাইকুম)[!।.\s]*$/i.test(text.trim()))return bengali?'হ্যালো! কীভাবে সাহায্য করতে পারি?':'Hello! How can I help you?';
+ return bengali?'আপনার বার্তাটি ঠিকভাবে বুঝতে পারিনি। দয়া করে আবার লিখুন। অর্ডার জমা হলে আপনাকে অর্ডার নম্বর জানানো হবে।':'I could not process that message correctly. Please send it again. You will receive an order number when an order is submitted.';
+}

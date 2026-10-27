@@ -1,4 +1,4 @@
-import {orderOutputInstruction,parseOrderAnswer,isOrderControl} from '@/lib/support-order-intake';
+import {orderOutputInstruction,parseOrderAnswer,isOrderControl,orderResponseSchema,safeOrderFormatFallback} from '@/lib/support-order-intake';
 import {catalogFacts,selectCatalog,validCatalogImagePath,providerHistory,type CatalogImage} from '@/lib/support-product-context';
 import {adminDb} from '@/lib/telegram-server';
 import {decryptChannelCredential} from '@/lib/support-channel-credentials';
@@ -72,7 +72,7 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
      try{
        let response:Response;
        if(stored.provider==='gemini'){
-         response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(stored.model)+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({systemInstruction:{parts:[{text:requestInstruction}]},contents:providerHistory('gemini',history,requestImages),generationConfig:{temperature:0.3,maxOutputTokens:1024}}),signal:AbortSignal.timeout(25000),cache:'no-store'});
+         response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(stored.model)+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({systemInstruction:{parts:[{text:requestInstruction}]},contents:providerHistory('gemini',history,requestImages),generationConfig:{temperature:0.3,maxOutputTokens:2048,responseMimeType:'application/json',responseSchema:orderResponseSchema}}),signal:AbortSignal.timeout(25000),cache:'no-store'});
        }else if(stored.provider==='openai'){
          response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+apiKey},body:JSON.stringify({model:stored.model,messages:[{role:'system',content:requestInstruction},...providerHistory('openai',history,requestImages)],max_completion_tokens:1024}),signal:AbortSignal.timeout(25000),cache:'no-store'});
        }else if(stored.provider==='anthropic'){
@@ -86,6 +86,10 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
      }catch{lastError='provider_request_failed';break}
      }
      if(answer)break;
+   }
+   if(!answer&&lastError==='invalid_order_response'){
+     errorCode='response_format_fallback';
+     answer=JSON.stringify({reply:safeOrderFormatFallback(String(inbound[0]?.text??''),/[ঀ-৿]/.test(inbound.map(m=>m.text).join(' '))),order:null});
    }
    if(!answer)throw Error(lastError);
    const {data:latest,error:le}=await db.from('support_messages').select('id')
