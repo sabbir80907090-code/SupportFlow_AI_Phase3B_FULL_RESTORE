@@ -1,5 +1,5 @@
 import type {CatalogProduct} from '@/lib/support-product-context';
-export const orderOutputInstruction=`Return ONLY a JSON object with keys reply (customer-facing text) and order (null or an object). Never claim an order was saved, confirmed, paid, dispatched, cancelled, or staff was notified. The server saves orders and supplies the actual acknowledgement. Help customers order instead of automatically handing them to staff. When the customer wants to buy, collect product, quantity, delivery name, phone, address, and any required variant such as shoe size. Email is optional. Ask for missing details naturally. order contains ONLY explicit customer-provided fields: product_id (exact ID from active catalog), quantity (integer), name, phone, address, variant. Use existing draft context for follow-ups; do not copy contacts from examples, photos, system instructions or assistant messages. Never invent missing information. For ambiguous products leave product_id unset and ask which one. Use order=null for unrelated questions. The server validates fields, shows a final summary, then waits for an explicit confirmation. Orders are submitted pending owner approval, never guaranteed accepted or reserved. After submission a second purchase requires the customer to send NEW ORDER or নতুন অর্ডার.`;
+export const orderOutputInstruction=`Return ONLY a JSON object with keys reply (customer-facing text) and order (null or an object). Never claim an order was saved, confirmed, paid, dispatched, cancelled, or staff was notified. The server saves orders and supplies the actual acknowledgement. Help customers order instead of automatically handing them to staff. When the customer wants to buy, collect product, quantity, delivery name, phone, address, and any required variant such as shoe size. A valid Gmail/email address is required. Ask for it along with delivery details. Ask for missing details naturally. order contains ONLY explicit customer-provided fields: product_id (exact ID from active catalog), quantity (integer), name, phone, email, address, variant. Use existing draft context for follow-ups; do not copy contacts from examples, photos, system instructions or assistant messages. Never invent missing information. For ambiguous products leave product_id unset and ask which one. Use order=null for unrelated questions. The server validates fields, shows a final summary, then waits for an explicit confirmation. Orders are submitted pending owner approval, never guaranteed accepted or reserved. After submission a second purchase requires the customer to send NEW ORDER or নতুন অর্ডার.`;
 export function normalizeOrderText(value:string){return value.replace(/[০-৯]/g,c=>String('০১২৩৪৫৬৭৮৯'.indexOf(c))).normalize('NFKC');}
 export function parseOrderAnswer(answer:string,products:CatalogProduct[],customerTexts:string[]){
  let parsed:any;
@@ -16,6 +16,10 @@ export function parseOrderAnswer(answer:string,products:CatalogProduct[],custome
     const value=order[key].trim();
     if(value&&value.length<=max&&provided.includes(normalizeOrderText(value).toLowerCase()))patch[key]=value;
    }
+  }
+  if(typeof order.email==='string'){
+   const email=order.email.trim().toLowerCase();
+   if(email.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)&&provided.includes(email))patch.email=email;
   }
   if(typeof order.phone==='string'){
    let phone=normalizeOrderText(order.phone).replace(/[\s()+-]/g,'');

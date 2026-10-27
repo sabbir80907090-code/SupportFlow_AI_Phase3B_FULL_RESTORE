@@ -9,7 +9,7 @@ begin
  insert into public.support_conversations(business_id,channel,sender_id) values(b,'telegram','chat-order-test-'||gen_random_uuid()) returning id into c;
  insert into public.support_conversations(business_id,channel,sender_id) values(b,'telegram','chat-order-test-'||gen_random_uuid()) returning id into c2;
  insert into public.business_products(business_id,name,price,currency,stock_quantity) values(b,'SQL test shoes',32,'BDT',10) returning id into product;
- draft:=jsonb_build_object('product_id',product,'quantity',2,'name','Test Customer','phone','01700000000','address','Test Road, Dhaka','variant','42');
+ draft:=jsonb_build_object('product_id',product,'quantity',2,'name','Test Customer','phone','01700000000','email','customer@gmail.com','address','Test Road, Dhaka','variant','42');
  -- Complete details produce a summary, not an order.
  insert into public.support_messages(business_id,conversation_id,event_id,direction,text) values(b,c,'details','inbound','অর্ডার চাই, নাম Test Customer, 01700000000, Test Road Dhaka, 2 pairs size 42') returning id into mid;
  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token) values(b,c,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
@@ -35,7 +35,7 @@ begin
  insert into public.support_messages(business_id,conversation_id,event_id,direction,text,created_at) values(b,c,'confirm','inbound','CONFIRM',now()+interval '3 seconds') returning id into mid;
  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token) values(b,c,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
  perform public.reply_with_chat_order(job,token,'Confirm',null);
- select o.order_number into order_no from public.orders o join public.support_order_drafts d on d.order_id=o.id where d.conversation_id=c and o.status='pending' and total_amount=70 and delivery_phone='01700000000';
+ select o.order_number into order_no from public.orders o join public.support_order_drafts d on d.order_id=o.id where d.conversation_id=c and o.status='pending' and total_amount=70 and delivery_phone='01700000000' and delivery_email='customer@gmail.com';
  if order_no is null then raise exception 'Order not saved at authoritative price'; end if;
  perform public.reply_with_chat_order(job,token,'Retry',null);
  if (select count(*) from public.orders where business_id=b and external_sender_id=(select sender_id from public.support_conversations where id=c))<>1 then raise exception 'Duplicate order'; end if;
@@ -47,7 +47,9 @@ begin
  -- Another conversation cannot use the first customer's consent or draft.
  insert into public.support_messages(business_id,conversation_id,event_id,direction,text) values(b,c2,'other','inbound','CONFIRM') returning id into mid;
  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token) values(b,c2,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
- perform public.reply_with_chat_order(job,token,'Provide details',null);
+ perform public.reply_with_chat_order(job,token,'Provide details',draft-'email');
+ if not exists(select 1 from public.support_outbox where request_id=job and text like '%Gmail%') then raise exception 'Missing email not requested'; end if;
+ if exists(select 1 from public.support_order_drafts where conversation_id=c2 and summary is not null) then raise exception 'Missing email accepted'; end if;
  if exists(select 1 from public.support_order_drafts where conversation_id=c2 and order_id is not null) then raise exception 'Conversation leak'; end if;
  -- Insufficient stock cannot produce an order, even with complete fields.
  insert into public.support_messages(business_id,conversation_id,event_id,direction,text,created_at) values(b,c2,'stock','inbound','I want 20 pairs',now()+interval '1 second') returning id into mid;

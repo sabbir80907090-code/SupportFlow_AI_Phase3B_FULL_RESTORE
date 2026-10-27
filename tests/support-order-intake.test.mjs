@@ -18,3 +18,8 @@ test('confirmation is explicit, never inferred from buying intent or negation',(
  for(const s of ['CONFIRM','হ্যাঁ','অর্ডার কনফার্ম','CANCEL','নতুন অর্ডার'])assert.equal(isOrderControl(s),true);
  for(const s of ['I want to buy','আমি অর্ডার করতে চাই','do not confirm','কনফার্ম করবেন না','yes but change address'])assert.equal(isOrderControl(s),false);
 });
+
+test('email must be valid and explicitly supplied by the customer',()=>{
+ assert.equal(parseOrderAnswer(JSON.stringify({reply:'OK',order:{email:'User@gmail.com'}}),[],['user@gmail.com']).patch.email,'user@gmail.com');
+ for(const email of ['invented@gmail.com','not-an-email'])assert.equal(parseOrderAnswer(JSON.stringify({reply:'Email please',order:{email}}),[],['hello']).patch,null);
+});
