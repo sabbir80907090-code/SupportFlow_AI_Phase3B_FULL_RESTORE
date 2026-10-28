@@ -33,3 +33,16 @@ button:disabled {cursor:not-allowed;opacity:.55}
  .order-list {overflow:visible}
 }
 @media (prefers-reduced-motion:reduce) {* {scroll-behavior:auto!important;transition:none!important}}
+
+@media (max-width:767px) {
+ .product-list {overflow:visible}
+ .responsive-products {min-width:0;display:block;width:100%}
+ .responsive-products thead {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ .responsive-products tbody {display:grid;gap:1rem;padding:.75rem}
+ .responsive-products tr {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);border:1px solid hsl(var(--line));border-radius:.75rem;padding:.5rem}
+ .responsive-products td {display:block;min-width:0;padding:.5rem;overflow-wrap:anywhere}
+ .responsive-products td::before {content:attr(data-label);display:block;margin-bottom:.35rem;font-size:.65rem;font-weight:700;color:hsl(var(--subtle));text-transform:uppercase}
+ .responsive-products td[data-label="Product"],.responsive-products td[data-label="SKU / Category"],.responsive-products td[data-label="Actions"],.responsive-products td[colspan] {grid-column:1/-1}
+ .responsive-products td button {min-height:44px;min-width:44px}
+ .responsive-products img {flex-shrink:0}
+}
