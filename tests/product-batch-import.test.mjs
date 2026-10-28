@@ -21,9 +21,9 @@ test('partial failure retries only failed row with the same ID',async()=>{
  const writes=[];await runImportBatch(rows,async r=>writes.push(r.id),report);assert.deepEqual(writes,['b']);assert.ok(rows.every(r=>r.saved));
 });
 test('unknown or invalid facts cannot silently become zero, but explicit zero is accepted',async()=>{
- for(const patch of [{price:''},{stock_quantity:''},{stock_quantity:'-1'},{stock_quantity:'1.5'},{currency:''},{price:'1e3'},{stock_quantity:'2147483648'}])assert.ok(productIssue({...row('a').product,...patch}));
+ for(const patch of [{price:''},{stock_quantity:'-1'},{stock_quantity:'1.5'},{currency:''},{price:'1e3'},{stock_quantity:'2147483648'}])assert.ok(productIssue({...row('a').product,...patch}));
  assert.equal(productIssue({...row('a').product,price:'0',stock_quantity:'0'}),'');
- let called=false;await runImportBatch([{...row('a'),product:{...row('a').product,stock_quantity:''}}],async()=>{called=true},r=>assert.ok(r.error));assert.equal(called,false);
+ let called=false;await runImportBatch([{...row('a'),product:{...row('a').product,stock_quantity:''}}],async r=>{called=true;assert.equal(importPayload(r,'business-A',true).stock_quantity,null)},r=>assert.equal(r.saved,true));assert.equal(called,true);
 });
 test('stop after current item prevents remaining writes',async()=>{
  let stop=false;const writes=[];await runImportBatch([row('a'),row('b')],async r=>{writes.push(r.id);stop=true},()=>{},()=>stop);assert.deepEqual(writes,['a']);
