@@ -57,3 +57,9 @@ test('Techland category uses per-card selling price and never footer stock or sa
  assert.equal(p.name,'Example 8GB RAM');assert.equal(p.price,'7700');assert.equal(p.currency,'BDT');assert.equal(p.description,'Capacity: 8GB');assert.equal(p.stock_quantity,'');assert.equal(p.sourceUrl,'https://www.techlandbd.com/ram-8gb');
  assert.deepEqual(parseProductPage(card,'https://other.example/category'),[]);
 });
+
+test('category schema can return more than 20 products with an explicit 100-product bound',()=>{
+ const products=Array.from({length:120},(_,i)=>({'@type':'Product',name:'Item '+i,offers:{price:i,priceCurrency:'BDT'}}));
+ assert.equal(parseProductPage(script(products.slice(0,35)),'https://shop.example/category').length,35);
+ assert.equal(parseProductPage(script(products),'https://shop.example/category').length,100);
+});
