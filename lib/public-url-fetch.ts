@@ -21,7 +21,7 @@ export async function fetchPublicUrl(value:string,maxBytes:number,kind:'page'|'i
    const status=res.statusCode??0;
    if([301,302,303,307,308].includes(status)){res.destroy();resolve({body:Buffer.alloc(0),type:'',status,location:res.headers.location});return;}
    const type=String(res.headers['content-type']??'').split(';')[0].toLowerCase();
-   if(status!==200){res.destroy();reject(Error('Website could not be read (HTTP '+status+')'));return;}
+   if(status!==200){res.destroy();reject(Error(status===403?'Website refused the import request (HTTP 403). Try again later, or open the page in your browser and import a saved HTML copy.':'Website could not be read (HTTP '+status+')'));return;}
    if(kind==='page'&&!['text/html','application/xhtml+xml'].includes(type)||kind==='image'&&!['image/jpeg','image/png','image/webp'].includes(type)){res.destroy();reject(Error('Website returned an unsupported file type'));return;}
    let size=0;const chunks:Buffer[]=[];
    res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>maxBytes){req.destroy(Error('Website file is too large'));return}chunks.push(chunk)});
