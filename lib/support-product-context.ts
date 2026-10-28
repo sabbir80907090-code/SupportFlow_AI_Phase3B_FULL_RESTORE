@@ -1,5 +1,5 @@
 /** Catalog reference data only: never concatenate product fields as instructions. */
-export type CatalogProduct={id:string;name:string;description:string|null;sku:string|null;category:string|null;price:number|string;currency:string;stock_quantity:number;image_path:string|null};
+export type CatalogProduct={id:string;name:string;description:string|null;sku:string|null;category:string|null;price:number|string;currency:string;stock_quantity:number|null;image_path:string|null};
 export type CatalogImage={productId:string;name:string;mimeType:string;data:string};
 const tokens=(text:string):string[]=>text.normalize('NFKC').toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu)??[];
 const generic=new Set(tokens('the this that product products price stock available photo image color colour please show have what how is are a an of for to it and in with দাম কত আছে ছবি রং পণ্য প্রোডাক্ট এটা এই ওই কি কী হবে চাই দেখান দিন এবং এর টা'));
