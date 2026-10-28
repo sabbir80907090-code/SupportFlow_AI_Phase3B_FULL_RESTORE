@@ -63,3 +63,13 @@ test('category schema can return more than 20 products with an explicit 100-prod
  assert.equal(parseProductPage(script(products.slice(0,35)),'https://shop.example/category').length,35);
  assert.equal(parseProductPage(script(products),'https://shop.example/category').length,100);
 });
+
+test('HT Bazar collection reads selling prices and sources, leaves unknown stock blank',()=>{
+ const card='<article><img src="/photo.jpg?a=1&amp;b=2"><h3><a href="/products/camera">WiFi &amp; HD Camera</a></h3><div class="flex items-baseline">৳ 699<span class="line-through">৳ 1,000</span></div><button>Add to Cart</button></article>';
+ const [p]=parseProductPage(card+'<footer>Out of stock</footer>','https://htbazar.com/collections/electronics-and-gadgets');
+ assert.equal(p.name,'WiFi & HD Camera');assert.equal(p.price,'699');assert.equal(p.stock_quantity,'');assert.equal(p.sourceUrl,'https://htbazar.com/products/camera');assert.equal(p.imageUrl,'https://htbazar.com/photo.jpg?a=1&b=2');
+ assert.deepEqual(parseProductPage(card,'https://other.example/collections/a'),[]);
+ assert.deepEqual(parseProductPage('<script>'+card+'</script>','https://htbazar.com/collections/a'),[]);
+ assert.deepEqual(parseProductPage(card.replace('/products/camera','https://other.example/products/camera'),'https://htbazar.com/collections/a'),[]);
+ assert.equal(parseProductPage(card.replace('Add to Cart','Out of stock'),'https://htbazar.com/collections/a')[0].stock_quantity,'0');
+});
