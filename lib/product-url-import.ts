@@ -6,7 +6,7 @@ function image(value:any,base:string){const raw=typeof value==='string'?value:Ar
 export function parseProductPage(html:string,sourceUrl:string):ImportedProduct[]{
  const products:ImportedProduct[]=[];let visited=0;
  function walk(value:any,depth=0){
-  if(!value||typeof value!=='object'||depth>12||visited++>3000||products.length>=20)return;
+  if(!value||typeof value!=='object'||depth>12||visited++>3000||products.length>=100)return;
   const types=Array.isArray(value['@type'])?value['@type']:[value['@type']];
   if(types.some((t:unknown)=>typeof t==='string'&&/(?:^|\/)Product$/.test(t))&&typeof value.name==='string'){
    const offers=Array.isArray(value.offers)?value.offers:[value.offers];
@@ -23,7 +23,7 @@ export function parseProductPage(html:string,sourceUrl:string):ImportedProduct[]
  // Techland category cards expose their facts in HTML rather than Product JSON-LD.
  if(!products.length&&['techlandbd.com','www.techlandbd.com'].includes(new URL(sourceUrl).hostname)){
   const cards=[...html.matchAll(/<div\b[^>]*\bwire:key=["']listing-card-\d+["'][^>]*>/gi)];
-  for(let i=0;i<Math.min(cards.length,20);i++){
+  for(let i=0;i<Math.min(cards.length,100);i++){
    const remaining=html.slice(cards[i].index);let depth=0,end=remaining.length;
    for(const tag of remaining.matchAll(/<\/?div\b[^>]*>/gi)){depth+=/^<\//.test(tag[0])?-1:1;if(depth===0){end=tag.index!+tag[0].length;break}}
    const card=remaining.slice(0,end);
