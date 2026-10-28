@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
-import type {ImportedProduct} from '@/lib/product-url-import';
+import {parseProductPage,type ImportedProduct} from '@/lib/product-url-import';
 import {importPayload,productIssue,runImportBatch,type ImportRow} from '@/lib/product-batch-import';
 const field='w-full min-w-0 rounded-xl border border-line bg-canvas px-3 py-2 text-sm';
 export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved:()=>Promise<void>}){
@@ -16,16 +16,33 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
   const result=await fetch('/api/products/import',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(25000)});
   if(!result.ok){const failure=await result.json().catch(()=>null);throw Error(failure?.error??'Import failed')};return result;
  }
- async function load(){
-  if(locked.current)return;locked.current=true;setBusy(true);setError('');setNotice('');
-  try{
-   const response=await request({url:url.trim()});const data=await response.json();if(!mounted.current)return;
-   const products:ImportedProduct[]=data.products??[];
+ function showProducts(products:ImportedProduct[]){
    setRows(old=>products.map(product=>{
     // Keep saved IDs when the same page is fetched again during this session.
     const previous=old.find(r=>r.product.sourceUrl===product.sourceUrl&&r.product.name===product.name&&r.product.sku===product.sku);
     return previous??{id:crypto.randomUUID(),product,selected:false,saved:false,error:'',warning:''};
    }));setLoaded(true);
+ }
+ async function loadFile(file:File){
+  if(locked.current)return;locked.current=true;setBusy(true);setError('');setNotice('');
+  try{
+   const source=new URL(url.trim());
+   if(source.protocol!=='https:'||source.username||source.password)throw Error('Enter the original public HTTPS page URL above first.');
+   if(file.size>2097152)throw Error('Saved page must be no larger than 2 MB.');
+   if(!/\.html?$/i.test(file.name))throw Error('Choose a saved HTML page (.html or .htm).');
+   const products=parseProductPage(await file.text(),source.href);
+   if(!mounted.current)return;
+   if(!products.length)throw Error('No readable products in this saved page. Open the product list fully before saving it.');
+   showProducts(products);setNotice('Loaded from a saved page. Review prices before adding; the saved copy may be outdated.');
+  }catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Could not read the saved page.');}
+  finally{locked.current=false;if(mounted.current)setBusy(false);}
+ }
+ async function load(){
+  if(locked.current)return;locked.current=true;setBusy(true);setError('');setNotice('');
+  try{
+   const response=await request({url:url.trim()});const data=await response.json();if(!mounted.current)return;
+   const products:ImportedProduct[]=data.products??[];
+   showProducts(products);
   }catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Import failed');}
   finally{locked.current=false;if(mounted.current)setBusy(false);}
  }
@@ -60,6 +77,7 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
  return <section className="space-y-4 rounded-2xl border border-line bg-panel p-4 sm:p-5" aria-label="Import products from website">
   <div><h5 className="font-bold">Import products from website</h5><p className="mt-1 text-sm text-subtle">Paste a product or supported category page → select products → review details → add selected.</p><p className="mt-1 text-xs text-subtle">Up to 100 readable products per page. Other pages, pagination and JavaScript-only products are not automatically included. This is a one-time copy.</p></div>
   <div className="flex flex-col gap-2 sm:flex-row"><input aria-label="Product website URL" type="url" maxLength={2048} disabled={busy} className={field+' flex-1'} placeholder="https://your-store.com/products" value={url} onChange={e=>setUrl(e.target.value)}/><button disabled={busy||!url.trim()} onClick={()=>void load()} className="rounded-xl bg-brand px-4 py-3 text-sm text-white">{busy&&!saving?'Loading…':'Fetch products'}</button></div>
+  <details className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-sm">Website blocked the request? Import a saved page</summary><p className="mt-2 text-xs text-subtle">Open the product list in your browser, wait for it to load, then use Save page as → HTML. Keep the original page URL above and choose the .html file below. Up to 2 MB; only readable products in that copy are included.</p><label className="mt-3 block text-sm">Saved HTML page<input className={field+' mt-1'} type="file" accept=".html,.htm,text/html" disabled={busy||!url.trim()} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void loadFile(file);}}/></label></details>
   {loaded&&rows.length===0&&<p role="status" className="text-sm text-subtle">No supported products found. Try a direct product page.</p>}
   {rows.length>0&&<>
    <div className="flex flex-wrap items-center justify-between gap-3"><label className="flex min-h-11 items-center gap-2 font-semibold"><input ref={allRef} type="checkbox" checked={allSelected} disabled={busy||!pending.length} onChange={e=>{const checked=e.target.checked;setRows(old=>old.map(r=>r.saved?r:{...r,selected:checked}));}}/>Select all</label><span aria-live="polite" className="text-sm text-subtle">{selected.length} selected · {rows.length} found · {rows.filter(r=>r.saved).length} added</span><button disabled={busy||!selected.length} className="min-h-11 text-sm text-brand underline" onClick={()=>setRows(old=>old.map(r=>({...r,selected:false})))}>Clear selection</button></div>
