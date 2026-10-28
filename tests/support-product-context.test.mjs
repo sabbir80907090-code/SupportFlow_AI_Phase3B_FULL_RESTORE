@@ -39,3 +39,8 @@ test('each provider receives bound product photo on last user turn only',()=>{
  }
  assert.equal(providerHistory('openai',history,[])[2].content,'Laptop colour?');
 });
+
+test('unknown stock stays null and remains distinct from zero',()=>{
+ const facts=JSON.parse(catalogFacts([product('unknown','Unknown stock',{stock_quantity:null}),product('empty','Out of stock',{stock_quantity:0})],2));
+ assert.equal(facts.products[0].stock_quantity,null);assert.equal(facts.products[1].stock_quantity,0);
+});
