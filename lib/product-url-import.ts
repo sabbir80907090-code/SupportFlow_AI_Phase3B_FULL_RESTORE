@@ -20,6 +20,24 @@ export function parseProductPage(html:string,sourceUrl:string):ImportedProduct[]
   if(!/\btype\s*=\s*["']application\/ld\+json["']/i.test(match[1]))continue;
   try{walk(JSON.parse(match[2]))}catch{/* Other blocks can still contain valid product data. */}
  }
+ // HT Bazar renders collection cards in streamed HTML, without Product JSON-LD.
+ if(!products.length&&['htbazar.com','www.htbazar.com'].includes(new URL(sourceUrl).hostname)&&new URL(sourceUrl).pathname.startsWith('/collections/')){
+  // Never inspect script strings as rendered cards or execute saved-page JavaScript.
+  const markup=html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'');
+  for(const match of markup.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article\s*>/gi)){
+   if(products.length>=100)break;
+   const card=match[1],title=card.match(/<h3\b[^>]*>([\s\S]*?)<\/h3>/i);
+   const anchor=title?.[1].match(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+   const productUrl=image(anchor?decode(anchor[1]):'',sourceUrl);
+   if(!anchor||!productUrl||new URL(productUrl).origin!==new URL(sourceUrl).origin||!new URL(productUrl).pathname.startsWith('/products/'))continue;
+   // The first price text is the selling price; the nested struck price is excluded.
+   const price=card.match(/<div\b[^>]*class=["'][^"']*items-baseline[^"']*["'][^>]*>\s*৳\s*([\d,.]+)/i);
+   const value=amount(price?.[1].replace(/,/g,''));
+   if(!value)continue;
+   const photo=card.match(/<img\b[^>]*\ssrc=["']([^"']+)["']/i);
+   products.push({name:text(anchor[2],160),description:'',sku:'',category:'',price:value,currency:'BDT',stock_quantity:/\bout of stock\b/i.test(text(card,12000))?'0':'',imageUrl:image(photo?decode(photo[1]):'',sourceUrl),sourceUrl:productUrl});
+  }
+ }
  // Techland category cards expose their facts in HTML rather than Product JSON-LD.
  if(!products.length&&['techlandbd.com','www.techlandbd.com'].includes(new URL(sourceUrl).hostname)){
   const cards=[...html.matchAll(/<div\b[^>]*\bwire:key=["']listing-card-\d+["'][^>]*>/gi)];
