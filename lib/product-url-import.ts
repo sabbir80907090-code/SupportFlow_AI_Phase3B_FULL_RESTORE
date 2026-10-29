@@ -3,6 +3,52 @@ function decode(text:string){return text.replace(/&(?:amp|quot|apos|lt|gt|nbsp|#
 const text=(v:unknown,max:number)=>decode(typeof v==='string'?v:typeof v==='number'?String(v):'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
 const amount=(v:unknown)=>{const value=typeof v==='number'?String(v):typeof v==='string'?v.trim():'';return /^\d+(?:\.\d{1,2})?$/.test(value)&&Number(value)<1e12?value:''};
 function image(value:any,base:string){const raw=typeof value==='string'?value:Array.isArray(value)?value[0]:value?.url??value?.contentUrl;try{const target=typeof raw==='object'?raw?.url:raw;if(typeof target!=='string'||!target.trim())return '';const u=new URL(target,base);return u.protocol==='https:'&&!u.username&&!u.password?u.href:''}catch{return ''}}
+// Domain-independent fallback for explicit Product microdata and common product cards.
+// Values remain untrusted plain text; missing or ambiguous facts require review.
+function productCards(html:string,sourceUrl:string):ImportedProduct[]{
+ const markup=html.replace(/<!--[^]*?-->/g,'').replace(/<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'');
+ const attrs=(tag:string)=>{const out:Record<string,string>={};for(const a of tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g))out[a[1].toLowerCase()]=decode(a[2]??a[3]);return out;};
+ const inner=(tail:string,tagName:string)=>{let depth=1;for(const tag of tail.matchAll(new RegExp('<\\/?'+tagName+'\\b[^>]*>','gi'))){depth+=/^<\//.test(tag[0])?-1:1;if(depth===0)return tail.slice(0,tag.index!);}return '';};
+ const result:ImportedProduct[]=[];let examined=0;
+ for(const start of markup.matchAll(/<(div|li|article|section)\b[^>]*>/gi)){
+  const a=attrs(start[0]),schema=/(?:https?:\/\/)?schema\.org\/Product\b/i.test(a.itemtype??'');
+  if(!schema&&!(a.class??'').split(/\s+/).some(c=>['product','product-card','product-item','card-product'].includes(c)))continue;
+  if(examined++>=300||result.length>=100)break;
+  const tail=markup.slice(start.index!+start[0].length,start.index!+100000),tagName=start[1];let depth=1,end=-1;
+  for(const tag of tail.matchAll(new RegExp('<\\/?'+tagName+'\\b[^>]*>','gi'))){depth+=/^<\//.test(tag[0])?-1:1;if(depth===0){end=tag.index!;break;}}
+  if(end<0)continue;
+  const card=tail.slice(0,end);
+  const prop=(name:string)=>{
+   for(const tag of card.matchAll(/<([a-z][\w:-]*)\b[^>]*>/gi)){
+    const values=attrs(tag[0]);if(!(values.itemprop??'').split(/\s+/).includes(name))continue;
+    if(values.content!==undefined)return values.content;
+    if(values.href!==undefined)return values.href;
+    if(values.src!==undefined)return values.src;
+    return text(inner(card.slice(tag.index!+tag[0].length),tag[1]),5000);
+   }return '';
+  };
+  const heading=card.match(/<h[1-4]\b[^>]*>([\s\S]*?)<\/h[1-4]>/i)?.[1]??'';
+  const name=text(prop('name')||heading,160);if(!name)continue;
+  const anchor=heading.match(/<a\b[^>]*>/i)?.[0]??card.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>/i)?.[0]??'';
+  const link=image(prop('url')||attrs(anchor).href,sourceUrl);
+  if(!schema&&(!link||new URL(link).origin!==new URL(sourceUrl).origin))continue;
+  // Exclude deleted prices; accept only one unambiguous amount from a marked price block.
+  const selling=card.replace(/<(del|s)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'');
+  const priceTag=[...selling.matchAll(/<([a-z][\w:-]*)\b[^>]*>/gi)].find(tag=>{const classes=(attrs(tag[0]).class??'').split(/\s+/);return !classes.includes('line-through')&&classes.some(c=>['price','product-price','price-item--sale'].includes(c));});
+  let priceText='';
+  if(priceTag)priceText=text(inner(selling.slice(priceTag.index!+priceTag[0].length),priceTag[1]),200);
+  const explicit=prop('price');
+  const raw=priceText.replace(/\b(?:BDT|USD|EUR|GBP|INR)\b/gi,'').replace(/[৳$€£₹]/g,'').trim();
+  // Do not assume a decimal convention for comma-only prices, or accept price ranges.
+  const normalized=/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(raw)?raw.replace(/,/g,''):raw;
+  const price=amount(explicit)||amount(normalized);
+  const currencyProp=prop('priceCurrency');
+  const currency=/^[A-Z]{3}$/.test(currencyProp)?currencyProp:priceText.match(/\b(BDT|USD|EUR|GBP|INR)\b/i)?.[1].toUpperCase()??(priceText.includes('৳')?'BDT':priceText.includes('€')?'EUR':priceText.includes('£')?'GBP':priceText.includes('₹')?'INR':'');
+  const img=card.match(/<img\b[^>]*>/i)?.[0]??'';
+  result.push({name,description:text(prop('description'),5000),sku:text(prop('sku'),80),category:text(prop('category'),100),price,currency,stock_quantity:/\/OutOfStock$/.test(prop('availability'))?'0':'',imageUrl:image(prop('image')||attrs(img).src||attrs(img)['data-src'],sourceUrl),sourceUrl:link||sourceUrl});
+ }
+ return result;
+}
 export function parseProductPage(html:string,sourceUrl:string):ImportedProduct[]{
  const products:ImportedProduct[]=[];let visited=0;
  function walk(value:any,depth=0){
@@ -12,7 +58,7 @@ export function parseProductPage(html:string,sourceUrl:string):ImportedProduct[]
    const offers=Array.isArray(value.offers)?value.offers:[value.offers];
    const offer=offers.find((o:any)=>o&&amount(o.price)!=='')??offers[0]??{};
    const qty=offer.inventoryLevel?.value??value.inventoryLevel?.value;
-   products.push({name:text(value.name,160),description:text(value.description,5000),sku:text(value.sku,80),category:text(value.category,100),price:amount(offer.price),currency:/^[A-Z]{3}$/.test(offer.priceCurrency)?offer.priceCurrency:'',stock_quantity:Number.isInteger(qty)&&qty>=0?String(qty):offer.availability?.endsWith('/OutOfStock')?'0':'',imageUrl:image(value.image,sourceUrl),sourceUrl});
+   products.push({name:text(value.name,160),description:text(value.description,5000),sku:text(value.sku,80),category:text(value.category,100),price:amount(offer.price),currency:/^[A-Z]{3}$/.test(offer.priceCurrency)?offer.priceCurrency:'',stock_quantity:Number.isInteger(qty)&&qty>=0?String(qty):offer.availability?.endsWith('/OutOfStock')?'0':'',imageUrl:image(value.image,sourceUrl),sourceUrl:image(value.url??offer.url,sourceUrl)||sourceUrl});
   }
   if(Array.isArray(value))for(const item of value)walk(item,depth+1);else for(const child of Object.values(value))walk(child,depth+1);
  }
@@ -68,5 +114,6 @@ export function parseProductPage(html:string,sourceUrl:string):ImportedProduct[]
    if(name)products.push({name,description:text(meta['og:description']??meta.description,5000),sku:'',category:'',price:amount(meta['product:price:amount']),currency:/^[A-Z]{3}$/.test(meta['product:price:currency'])?meta['product:price:currency']:'',stock_quantity:'',imageUrl:image(meta['og:image'],sourceUrl),sourceUrl});
   }
  }
+ if(!products.length)products.push(...productCards(html,sourceUrl));
  return products.filter((p,i,list)=>p.name&&list.findIndex(v=>v.name===p.name&&v.sku===p.sku&&v.price===p.price)===i);
 }
