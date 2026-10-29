@@ -105,3 +105,10 @@ test('generic price matching does not read compare-at prices and main metadata p
  const meta='<meta property="og:type" content="product"><meta property="og:title" content="Main item"><meta property="product:price:amount" content="25">';
  const rows=parseProductPage(meta+card,'https://shop.example/main');assert.equal(rows.length,1);assert.equal(rows[0].name,'Main item');assert.equal(rows[0].price,'25');
 });
+
+test('Star Tech ListItem cards use current price, never savings or old price',()=>{
+ const card=(name,price)=>`<div class="p-item" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><meta itemprop="name" content="${name}"><meta itemprop="url" content="https://www.startech.com.bd/${name}"><div class="p-item-inner"><div class="marks"><span class="mark">Save: 1,499৳</span></div><div class="p-item-img"><a href="/${name}"><img itemprop="image" src="/phone.webp"></a></div><div class="p-item-details"><h4 class="p-item-name"><a href="/${name}">${name}</a></h4><div class="p-item-price">${price}</div><div class="actions">Buy Now</div></div></div></div>`;
+ const rows=parseProductPage(card('phone-one','<span class="price-new">25,500৳</span><span class="price-old">26,999৳</span>')+card('phone-two','<span>32,999৳</span>'),'https://www.startech.com.bd/mobile-phone?page=2');
+ assert.equal(rows.length,2);assert.deepEqual(rows.map(p=>p.price),['25500','32999']);assert.ok(rows.every(p=>p.currency==='BDT'&&p.stock_quantity===''));assert.equal(rows[0].sourceUrl,'https://www.startech.com.bd/phone-one');assert.equal(rows[0].imageUrl,'https://www.startech.com.bd/phone.webp');
+ assert.equal(parseProductPage(card('coming-soon','<span>Coming Soon</span>'),'https://www.startech.com.bd/mobile-phone')[0].price,'');
+});
