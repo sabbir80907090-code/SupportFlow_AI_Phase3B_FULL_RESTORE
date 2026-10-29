@@ -12,7 +12,7 @@ function productCards(html:string,sourceUrl:string):ImportedProduct[]{
  const result:ImportedProduct[]=[];let examined=0;
  for(const start of markup.matchAll(/<(div|li|article|section)\b[^>]*>/gi)){
   const a=attrs(start[0]),schema=/(?:https?:\/\/)?schema\.org\/Product\b/i.test(a.itemtype??'');
-  if(!schema&&!(a.class??'').split(/\s+/).some(c=>['product','product-card','product-item','card-product'].includes(c)))continue;
+  if(!schema&&!(a.class??'').split(/\s+/).some(c=>['product','product-card','product-item','card-product','p-item'].includes(c)))continue;
   if(examined++>=300||result.length>=100)break;
   const tail=markup.slice(start.index!+start[0].length,start.index!+100000),tagName=start[1];let depth=1,end=-1;
   for(const tag of tail.matchAll(new RegExp('<\\/?'+tagName+'\\b[^>]*>','gi'))){depth+=/^<\//.test(tag[0])?-1:1;if(depth===0){end=tag.index!;break;}}
@@ -33,8 +33,8 @@ function productCards(html:string,sourceUrl:string):ImportedProduct[]{
   const link=image(prop('url')||attrs(anchor).href,sourceUrl);
   if(!schema&&(!link||new URL(link).origin!==new URL(sourceUrl).origin))continue;
   // Exclude deleted prices; accept only one unambiguous amount from a marked price block.
-  const selling=card.replace(/<(del|s)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'');
-  const priceTag=[...selling.matchAll(/<([a-z][\w:-]*)\b[^>]*>/gi)].find(tag=>{const classes=(attrs(tag[0]).class??'').split(/\s+/);return !classes.includes('line-through')&&classes.some(c=>['price','product-price','price-item--sale'].includes(c));});
+  const selling=card.replace(/<(del|s)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'').replace(/<span\b[^>]*class=["'][^"']*\bprice-old\b[^"']*["'][^>]*>[\s\S]*?<\/span\s*>/gi,'');
+  const priceTag=[...selling.matchAll(/<([a-z][\w:-]*)\b[^>]*>/gi)].find(tag=>{const classes=(attrs(tag[0]).class??'').split(/\s+/);return !classes.includes('line-through')&&classes.some(c=>['price','product-price','price-item--sale','p-item-price'].includes(c));});
   let priceText='';
   if(priceTag)priceText=text(inner(selling.slice(priceTag.index!+priceTag[0].length),priceTag[1]),200);
   const explicit=prop('price');
