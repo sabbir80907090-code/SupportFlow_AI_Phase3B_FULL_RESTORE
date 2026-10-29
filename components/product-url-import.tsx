@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+import {ProductReadError,readProductsAutomatically} from '@/lib/automatic-product-import';
 import {getSupabase} from '@/lib/supabase';
 import {parseProductPage,type ImportedProduct} from '@/lib/product-url-import';
 import {importPayload,productIssue,runImportBatch,type ImportRow} from '@/lib/product-batch-import';
@@ -8,15 +9,22 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
  const mounted=useRef(true),locked=useRef(false),stop=useRef(false),allRef=useRef<HTMLInputElement>(null);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;stop.current=true;}},[]);
  const [url,setUrl]=useState(''),[rows,setRows]=useState<ImportRow[]>([]),[busy,setBusy]=useState(false),[saving,setSaving]=useState(false),[loaded,setLoaded]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [mode,setMode]=useState<'basic'|'browser_ai'>('basic'),[browserAvailable,setBrowserAvailable]=useState<boolean|null>(null);
+ const [browserAvailable,setBrowserAvailable]=useState<boolean|null>(null),[progress,setProgress]=useState('');
  const [stock,setStock]=useState(''),[currency,setCurrency]=useState('BDT'),[active,setActive]=useState(true),[copyImages,setCopyImages]=useState(true);
  const pending=rows.filter(r=>!r.saved),selected=pending.filter(r=>r.selected),allSelected=pending.length>0&&selected.length===pending.length;
  useEffect(()=>{if(allRef.current)allRef.current.indeterminate=selected.length>0&&!allSelected;},[selected.length,allSelected]);
- useEffect(()=>{let cancelled=false;void (async()=>{try{const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)return;const response=await fetch('/api/products/browser-import',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error();const status=await response.json();if(!cancelled){setBrowserAvailable(status.available===true);if(status.available===true)setMode('browser_ai');}}catch{if(!cancelled)setBrowserAvailable(false);}})();return()=>{cancelled=true;};},[businessId]);
+ async function checkBrowser(){
+  try{
+   const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)return false;
+   const response=await fetch('/api/products/browser-import',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});
+   if(!response.ok)return false;const status=await response.json();const available=status.available===true;
+   if(mounted.current)setBrowserAvailable(available);return available;
+  }catch{return false;}
+ }
  async function request(body:object,browser=false){
   const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)throw Error('Sign in again');
   const result=await fetch(browser?'/api/products/browser-import':'/api/products/import',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(browser?55000:25000)});
-  if(!result.ok){const failure=await result.json().catch(()=>null);throw Error(failure?.error??'Import failed')};return result;
+  if(!result.ok){const failure=await result.json().catch(()=>null);throw new ProductReadError(failure?.error??'Import failed',result.status)};return result;
  }
  function showProducts(products:ImportedProduct[]){
    setRows(old=>products.map(product=>{
@@ -42,7 +50,13 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
  async function load(){
   if(locked.current)return;locked.current=true;setBusy(true);setError('');setNotice('');
   try{
-   const response=await request({url:url.trim()},mode==='browser_ai');const data=await response.json();if(!mounted.current)return;
+   const source=new URL(url.trim());
+   if(source.protocol!=='https:'||source.username||source.password)throw Error('Enter a public HTTPS product or category page URL.');
+   setLoaded(false);
+   const data=await readProductsAutomatically(async browser=>{
+    const response=await request({url:source.href},browser);return response.json();
+   },checkBrowser,message=>{if(mounted.current)setProgress(message);});
+   if(!mounted.current)return;
    const products:ImportedProduct[]=data.products??[];
    showProducts(products);if(data.mode==='browser_ai'){setActive(false);setNotice(data.notice??'Review AI-extracted details before saving.');}
   }catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Import failed');}
@@ -77,14 +91,14 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
   finally{locked.current=false;if(mounted.current){setBusy(false);setSaving(false);}}
  }
  return <section className="space-y-4 rounded-2xl border border-line bg-panel p-4 sm:p-5" aria-label="Import products from website">
-  <div><h5 className="font-bold">Import products from website</h5><p className="mt-1 text-sm text-subtle">Paste a product or supported category page → select products → review details → add selected.</p><p className="mt-1 text-xs text-subtle">Up to 100 readable products per page. Other pages, pagination and JavaScript-only products are not automatically included. This is a one-time copy.</p></div>
-  <label className="block text-sm">Reading method<select className={field+' mt-1'} value={mode} disabled={busy} onChange={e=>setMode(e.target.value as 'basic'|'browser_ai')}><option value="basic">Standard import</option><option value="browser_ai" disabled={!browserAvailable}>Browser + AI{browserAvailable?'':' — setup pending'}</option></select></label>
-  {mode==='browser_ai'&&<p className="text-xs text-subtle">Loads the page in a remote browser and extracts product drafts with AI. Uses reading-service credits. Up to 20 requests per workspace per day. Review all details before saving; login and blocked pages may not work.</p>}
-  {browserAvailable===false&&<p role="status" className="text-xs text-subtle">Browser + AI is not connected yet. Standard import and saved-page import are available.</p>}
-  <div className="flex flex-col gap-2 sm:flex-row"><input aria-label="Product website URL" type="url" maxLength={2048} disabled={busy} className={field+' flex-1'} placeholder="https://your-store.com/products" value={url} onChange={e=>setUrl(e.target.value)}/><button disabled={busy||!url.trim()} onClick={()=>void load()} className="rounded-xl bg-brand px-4 py-3 text-sm text-white">{busy&&!saving?(mode==='browser_ai'?'Reading with browser + AI…':'Loading…'):'Fetch products'}</button></div>
+  <div><h5 className="font-bold">Import products from website</h5><p className="mt-1 text-sm text-subtle">Paste a product or supported category page → select products → review details → add selected.</p><p className="mt-1 text-xs text-subtle">Up to 100 readable products per page. Only the linked page is read; other pages and pagination are not included. This is a one-time copy.</p></div>
+  <p className="text-xs text-subtle">We try standard reading first, then Browser + AI automatically when needed. Browser reading uses service credits and allows up to 20 attempts per workspace per day. Login, CAPTCHA and blocked pages may not work.</p>
+  {browserAvailable===false&&<p role="status" className="text-xs text-subtle">Browser reading is not connected. You can still import a saved page below.</p>}
+  <div className="flex flex-col gap-2 sm:flex-row"><input aria-label="Product website URL" type="url" maxLength={2048} disabled={busy} className={field+' flex-1'} placeholder="https://your-store.com/products" value={url} onChange={e=>setUrl(e.target.value)}/><button disabled={busy||!url.trim()} onClick={()=>void load()} className="rounded-xl bg-brand px-4 py-3 text-sm text-white">{busy&&!saving?'Reading products…':'Fetch products'}</button></div>
+  {busy&&!saving&&progress&&<p role="status" aria-live="polite" className="text-sm">{progress}</p>}
   <details className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-sm">Website blocked the request? Import a saved page</summary><p className="mt-2 text-xs text-subtle">Open the product list in your browser, wait for it to load, then use Save page as → HTML. Keep the original page URL above and choose the .html file below. Up to 2 MB; only readable products in that copy are included.</p><label className="mt-3 block text-sm">Saved HTML page<input className={field+' mt-1'} type="file" accept=".html,.htm,text/html" disabled={busy||!url.trim()} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void loadFile(file);}}/></label></details>
   {loaded&&rows.length===0&&<p role="status" className="text-sm text-subtle">No supported products found. Try a direct product page.</p>}
-  {rows.length>0&&<>
+  {loaded&&rows.length>0&&<>
    <div className="flex flex-wrap items-center justify-between gap-3"><label className="flex min-h-11 items-center gap-2 font-semibold"><input ref={allRef} type="checkbox" checked={allSelected} disabled={busy||!pending.length} onChange={e=>{const checked=e.target.checked;setRows(old=>old.map(r=>r.saved?r:{...r,selected:checked}));}}/>Select all</label><span aria-live="polite" className="text-sm text-subtle">{selected.length} selected · {rows.length} found · {rows.filter(r=>r.saved).length} added</span><button disabled={busy||!selected.length} className="min-h-11 text-sm text-brand underline" onClick={()=>setRows(old=>old.map(r=>({...r,selected:false})))}>Clear selection</button></div>
    <details className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-sm font-semibold">Set stock or currency for selected products</summary><p className="mt-2 text-xs text-subtle">Only apply quantities and currency you have verified. Leave stock blank if unknown. No quantity is assumed.</p><div className="mt-3 flex flex-wrap items-end gap-2"><label className="text-sm">Stock<input className={field} type="number" min="0" step="1" value={stock} disabled={busy} onChange={e=>setStock(e.target.value)}/></label><button disabled={busy||!selected.length||!/^\d+$/.test(stock)||Number(stock)>2147483647} className="rounded-xl border border-line p-3 text-sm" onClick={()=>setRows(old=>old.map(r=>r.selected&&!r.saved?{...r,product:{...r.product,stock_quantity:stock},error:''}:r))}>Apply stock</button><label className="text-sm">Currency<input className={field} maxLength={3} value={currency} disabled={busy} onChange={e=>setCurrency(e.target.value.toUpperCase())}/></label><button disabled={busy||!selected.length||!/^[A-Z]{3}$/.test(currency)} className="rounded-xl border border-line p-3 text-sm" onClick={()=>setRows(old=>old.map(r=>r.selected&&!r.saved?{...r,product:{...r.product,currency},error:''}:r))}>Apply currency</button></div></details>
    <ul className="grid max-h-[65vh] gap-3 overflow-y-auto p-1 sm:grid-cols-2" aria-label="Products found on page">{rows.map(row=><li key={row.id} className={`min-w-0 rounded-xl border p-4 ${row.selected?'border-brand':'border-line'}`}>

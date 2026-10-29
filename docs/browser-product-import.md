@@ -1,6 +1,6 @@
 # Browser + AI product import
 
-Owners can select Browser + AI in Products. It sends the supplied public HTTPS URL to Firecrawl v2 Scrape, which renders the page and extracts products with a JSON schema. This is separate from the standard HTML parser; no domain adapter is required by this path.
+Owners paste a URL in Products. Standard reading runs first; an unreadable page, empty result, network failure or server failure triggers one Browser + AI attempt when the service is configured. Authentication, permission, invalid-request and quota responses do not trigger that retry. Progress text identifies the current stage. It sends the supplied public HTTPS URL to Firecrawl v2 Scrape, which renders the page and extracts products with a JSON schema. The fallback uses a separate endpoint from the standard HTML parser; no domain adapter is required by this path.
 
 ## Configuration
 
@@ -29,3 +29,5 @@ Owners can select Browser + AI in Products. It sends the supplied public HTTPS U
 - Actual authenticated app import/save must still be checked before production release. The two provider tests did not create any product records.
 
 Provider docs: https://docs.firecrawl.dev/api-reference/endpoint/scrape and https://docs.firecrawl.dev/features/llm-extract
+
+Automatic fallback validation: six orchestration tests cover standard success without browser cost, fallback, authorization/quota stops, unavailable service, provider failure and empty browser results. All 41 import tests, TypeScript and the production build pass. Authenticated UI/save testing remains pending.
