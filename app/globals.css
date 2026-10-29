@@ -46,3 +46,20 @@ button:disabled {cursor:not-allowed;opacity:.55}
  .responsive-products td button {min-height:44px;min-width:44px}
  .responsive-products img {flex-shrink:0}
 }
+
+/* Bound each column so long product summaries cannot spread the Orders table. */
+.responsive-orders {table-layout:fixed}
+.responsive-orders th {background:hsl(var(--canvas));font-weight:600;letter-spacing:.04em}
+.responsive-orders td {vertical-align:top;overflow-wrap:anywhere}
+.responsive-orders tbody tr:last-child {border-bottom:0}
+.responsive-orders tbody tr:hover {background:hsl(var(--canvas)/.5)}
+@media (min-width:768px) {
+ .responsive-orders {min-width:900px}
+ .responsive-orders th:nth-child(1) {width:11%}
+ .responsive-orders th:nth-child(2) {width:23%}
+ .responsive-orders th:nth-child(3) {width:31%}
+ .responsive-orders th:nth-child(4) {width:12%;text-align:right}
+ .responsive-orders th:nth-child(5) {width:13%}
+ .responsive-orders th:nth-child(6) {width:10%}
+ .responsive-orders td[data-label="Amount"] {text-align:right}
+}
