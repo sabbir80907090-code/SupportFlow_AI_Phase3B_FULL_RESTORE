@@ -8,12 +8,14 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
  const mounted=useRef(true),locked=useRef(false),stop=useRef(false),allRef=useRef<HTMLInputElement>(null);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;stop.current=true;}},[]);
  const [url,setUrl]=useState(''),[rows,setRows]=useState<ImportRow[]>([]),[busy,setBusy]=useState(false),[saving,setSaving]=useState(false),[loaded,setLoaded]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [mode,setMode]=useState<'basic'|'browser_ai'>('basic'),[browserAvailable,setBrowserAvailable]=useState<boolean|null>(null);
  const [stock,setStock]=useState(''),[currency,setCurrency]=useState('BDT'),[active,setActive]=useState(true),[copyImages,setCopyImages]=useState(true);
  const pending=rows.filter(r=>!r.saved),selected=pending.filter(r=>r.selected),allSelected=pending.length>0&&selected.length===pending.length;
  useEffect(()=>{if(allRef.current)allRef.current.indeterminate=selected.length>0&&!allSelected;},[selected.length,allSelected]);
- async function request(body:object){
+ useEffect(()=>{let cancelled=false;void (async()=>{try{const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)return;const response=await fetch('/api/products/browser-import',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error();const status=await response.json();if(!cancelled){setBrowserAvailable(status.available===true);if(status.available===true)setMode('browser_ai');}}catch{if(!cancelled)setBrowserAvailable(false);}})();return()=>{cancelled=true;};},[businessId]);
+ async function request(body:object,browser=false){
   const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)throw Error('Sign in again');
-  const result=await fetch('/api/products/import',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(25000)});
+  const result=await fetch(browser?'/api/products/browser-import':'/api/products/import',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(browser?55000:25000)});
   if(!result.ok){const failure=await result.json().catch(()=>null);throw Error(failure?.error??'Import failed')};return result;
  }
  function showProducts(products:ImportedProduct[]){
@@ -40,9 +42,9 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
  async function load(){
   if(locked.current)return;locked.current=true;setBusy(true);setError('');setNotice('');
   try{
-   const response=await request({url:url.trim()});const data=await response.json();if(!mounted.current)return;
+   const response=await request({url:url.trim()},mode==='browser_ai');const data=await response.json();if(!mounted.current)return;
    const products:ImportedProduct[]=data.products??[];
-   showProducts(products);
+   showProducts(products);if(data.mode==='browser_ai'){setActive(false);setNotice(data.notice??'Review AI-extracted details before saving.');}
   }catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Import failed');}
   finally{locked.current=false;if(mounted.current)setBusy(false);}
  }
@@ -76,7 +78,10 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
  }
  return <section className="space-y-4 rounded-2xl border border-line bg-panel p-4 sm:p-5" aria-label="Import products from website">
   <div><h5 className="font-bold">Import products from website</h5><p className="mt-1 text-sm text-subtle">Paste a product or supported category page → select products → review details → add selected.</p><p className="mt-1 text-xs text-subtle">Up to 100 readable products per page. Other pages, pagination and JavaScript-only products are not automatically included. This is a one-time copy.</p></div>
-  <div className="flex flex-col gap-2 sm:flex-row"><input aria-label="Product website URL" type="url" maxLength={2048} disabled={busy} className={field+' flex-1'} placeholder="https://your-store.com/products" value={url} onChange={e=>setUrl(e.target.value)}/><button disabled={busy||!url.trim()} onClick={()=>void load()} className="rounded-xl bg-brand px-4 py-3 text-sm text-white">{busy&&!saving?'Loading…':'Fetch products'}</button></div>
+  <label className="block text-sm">Reading method<select className={field+' mt-1'} value={mode} disabled={busy} onChange={e=>setMode(e.target.value as 'basic'|'browser_ai')}><option value="basic">Standard import</option><option value="browser_ai" disabled={!browserAvailable}>Browser + AI{browserAvailable?'':' — setup pending'}</option></select></label>
+  {mode==='browser_ai'&&<p className="text-xs text-subtle">Loads the page in a remote browser and extracts product drafts with AI. Uses reading-service credits. Up to 20 requests per workspace per day. Review all details before saving; login and blocked pages may not work.</p>}
+  {browserAvailable===false&&<p role="status" className="text-xs text-subtle">Browser + AI is not connected yet. Standard import and saved-page import are available.</p>}
+  <div className="flex flex-col gap-2 sm:flex-row"><input aria-label="Product website URL" type="url" maxLength={2048} disabled={busy} className={field+' flex-1'} placeholder="https://your-store.com/products" value={url} onChange={e=>setUrl(e.target.value)}/><button disabled={busy||!url.trim()} onClick={()=>void load()} className="rounded-xl bg-brand px-4 py-3 text-sm text-white">{busy&&!saving?(mode==='browser_ai'?'Reading with browser + AI…':'Loading…'):'Fetch products'}</button></div>
   <details className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-sm">Website blocked the request? Import a saved page</summary><p className="mt-2 text-xs text-subtle">Open the product list in your browser, wait for it to load, then use Save page as → HTML. Keep the original page URL above and choose the .html file below. Up to 2 MB; only readable products in that copy are included.</p><label className="mt-3 block text-sm">Saved HTML page<input className={field+' mt-1'} type="file" accept=".html,.htm,text/html" disabled={busy||!url.trim()} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void loadFile(file);}}/></label></details>
   {loaded&&rows.length===0&&<p role="status" className="text-sm text-subtle">No supported products found. Try a direct product page.</p>}
   {rows.length>0&&<>
