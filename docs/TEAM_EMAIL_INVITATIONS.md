@@ -59,3 +59,11 @@ Invitations expire after seven days, may be cancelled by the Owner, and cannot b
 - Operator action: Supabase Dashboard → Authentication → URL Configuration: set Site URL to the production website if it is localhost, and add the exact Preview origin plus `/**` to Redirect URLs. Keep only trusted origins; do not allow all Vercel apps globally.
 - After a fresh Preview deployment and Supabase allowlist update, Owner must revoke the broken pending invite and send a new invite. Do not send invitation tokens or private auth links to support chat.
 - Verify end-to-end on the invitee's own browser and confirm `business_members.role = agent` in the correct business without exposing cross-tenant data.
+
+## 2026-11-04 follow-up: user requests direct configuration
+
+- Confirmed Supabase connector exposes database and project operations but **no Auth URL Configuration update action**. Do not claim Supabase Site URL or redirect allowlist has been changed; this requires a privileged Supabase Dashboard action.
+- Preview-only `SUPPORTFLOW_APP_URL` is set on Vercel for branch `feature/email-moderator-invitations`, with the stable branch alias.
+- Triggered a new staging/Preview redeployment (`dpl_3g7NZSdYX4hMQdjXY78RYiZXy77Y`) to pick up environment settings. Build was still running at last check.
+- The existing email's `localhost:3000` redirect remains unfixed until Supabase Authentication → URL Configuration is updated. Site URL should use the actual production origin and the exact trusted Preview alias should be allowed under Redirect URLs.
+- No Supabase Auth config change, new email, or user invitation acceptance was performed in this step.
