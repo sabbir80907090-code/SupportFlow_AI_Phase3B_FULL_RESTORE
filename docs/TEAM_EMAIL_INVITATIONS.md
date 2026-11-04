@@ -32,3 +32,14 @@ Invitations expire after seven days, may be cancelled by the Owner, and cannot b
 - Owner-only team management is deliberate. The app currently has a single owner per business.
 - If email delivery fails, the pending invitation is revoked; a failed invite may still have created an unconfirmed Supabase Auth user. Email provider configuration must be tested.
 - Email delivery is dependent on Supabase Auth SMTP settings and rate limits.
+
+## 2026-11-04 verification update
+
+- Inspected current Supabase production schema, role constraints, RLS and Vercel environment variable **names only**. No credentials or customer records were copied into notes.
+- Vercel generated a READY preview for the initial PR commit. Later hardening commits still require their final preview build result.
+- Fixed lock ordering in invite acceptance, refused unconfigured redirect URLs, surfaced team-list query errors, and prevented new moderators from seeing the create-business onboarding before accepting their invitation.
+- Supabase currently has **no development branches**. Applying this SQL now would modify production; do not do so until an isolated staging environment is available or the change is explicitly reviewed and authorized for production.
+- Vercel currently has SUPPORTFLOW_APP_URL for **production only**, not preview. Configure a trusted preview origin and Supabase Auth redirect allowlist before attempting email delivery in Preview.
+- A Vercel team authorization prompt is pending for reading detailed deployment logs; a READY preview alone does not prove end-to-end invitation delivery.
+- Security advisor currently reports unrelated legacy n8n tables with RLS disabled and match_documents mutable search_path. Track these separately; do not change them as part of team invitations.
+- No emails sent, no invitation memberships created, no migration applied, no production release.
