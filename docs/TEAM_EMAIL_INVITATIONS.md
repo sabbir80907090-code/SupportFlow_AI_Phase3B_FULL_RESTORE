@@ -51,3 +51,11 @@ Invitations expire after seven days, may be cancelled by the Owner, and cannot b
 - Latest Preview commit `4a202e2` is READY in Vercel. Production application code remains unchanged, but production database schema is now updated because Preview shares the live Supabase project.
 - Security advisor lists the new invitations table as RLS-enabled with no policies. This is intentional: direct client access is revoked; only the service-role server API accesses it. Other pre-existing advisor findings are tracked separately.
 - Next: authenticated Owner send-email test, Supabase email template/redirect allowlist verification, invitee acceptance, and cross-tenant/role E2E. Do not claim email flow is proven yet.
+
+## 2026-11-04 invitation email localhost redirect investigation
+
+- User confirmed invite email arrived, but the Accept Invitation link redirected to localhost:3000. The server API sends an explicit `redirectTo`, so the most likely cause is the Supabase Auth URL allowlist not containing the Preview URL, which makes Auth fall back to its Site URL. This must be verified in the Auth dashboard; connector does not expose an Auth URL configuration write action.
+- Added Vercel branch-scoped Preview `SUPPORTFLOW_APP_URL` = `https://support-flow-ai-phase3-b-full-restore-git-feature-e652f2-nax10.vercel.app`. Production environment remains unchanged. This change needs a fresh Preview deployment to be picked up.
+- Operator action: Supabase Dashboard → Authentication → URL Configuration: set Site URL to the production website if it is localhost, and add the exact Preview origin plus `/**` to Redirect URLs. Keep only trusted origins; do not allow all Vercel apps globally.
+- After a fresh Preview deployment and Supabase allowlist update, Owner must revoke the broken pending invite and send a new invite. Do not send invitation tokens or private auth links to support chat.
+- Verify end-to-end on the invitee's own browser and confirm `business_members.role = agent` in the correct business without exposing cross-tenant data.
