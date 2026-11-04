@@ -69,6 +69,7 @@ export async function DELETE(req:NextRequest){
  let body:unknown;try{body=await req.json()}catch{return respond({error:'Invalid request'},400)}
  const input=body as {businessId?:unknown;invitationId?:unknown};
  if(typeof input?.businessId!=='string'||typeof input?.invitationId!=='string')return respond({error:'Invalid request'},400);
+ if(!/^[0-9a-f-]{36}$/i.test(input.businessId)||!/^[0-9a-f-]{36}$/i.test(input.invitationId))return respond({error:'Invalid request'},400);
  const auth=await owner(req,input.businessId);if(!auth)return respond({error:'Owner access required'},403);
  const {data,error}=await auth.database.from('business_team_invitations').update({status:'revoked'})
   .eq('id',input.invitationId).eq('business_id',input.businessId).eq('status','pending')
