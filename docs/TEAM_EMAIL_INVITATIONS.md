@@ -43,3 +43,11 @@ Invitations expire after seven days, may be cancelled by the Owner, and cannot b
 - A Vercel team authorization prompt is pending for reading detailed deployment logs; a READY preview alone does not prove end-to-end invitation delivery.
 - Security advisor currently reports unrelated legacy n8n tables with RLS disabled and match_documents mutable search_path. Track these separately; do not change them as part of team invitations.
 - No emails sent, no invitation memberships created, no migration applied, no production release.
+
+## 2026-11-04 live database correction
+
+- User observed missing RPC error in Preview. Applied additive `business_team_email_invitations` migration to the shared Supabase production project after confirming live constraints and migration history. Migration succeeded.
+- Verified the invitations table exists, both service-role-only RPCs exist, and RLS is enabled. No invitation records existed immediately after migration; no email was sent during the migration.
+- Latest Preview commit `4a202e2` is READY in Vercel. Production application code remains unchanged, but production database schema is now updated because Preview shares the live Supabase project.
+- Security advisor lists the new invitations table as RLS-enabled with no policies. This is intentional: direct client access is revoked; only the service-role server API accesses it. Other pre-existing advisor findings are tracked separately.
+- Next: authenticated Owner send-email test, Supabase email template/redirect allowlist verification, invitee acceptance, and cross-tenant/role E2E. Do not claim email flow is proven yet.
