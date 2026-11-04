@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {db} from '@/lib/support-telegram-connect';
+import {createClient} from '@supabase/supabase-js';
 export const runtime='nodejs';
 const respond=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'Cache-Control':'no-store'}});
 async function owner(req:NextRequest,businessId:string){
@@ -43,9 +44,22 @@ export async function POST(req:NextRequest){
   ...(redirect?{redirectTo:redirect}:{})
  });
  if(sendError){
-  await auth.database.from('business_team_invitations').update({status:'revoked'})
-   .eq('id',id).eq('business_id',businessId).eq('status','pending');
-  return respond({error:'Invitation email could not be delivered. If this person already has an account, contact support for the existing-user invitation flow.'},502);
+  // Existing accounts cannot be re-invited via admin.inviteUserByEmail.
+  // Send a normal login email instead, still requiring explicit acceptance.
+  const existing=/already|registered|exists/i.test(sendError.message);
+  let recovered=false;
+  if(existing&&redirect&&process.env.NEXT_PUBLIC_SUPABASE_URL&&process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY){
+   const publicClient=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+   const {error:otpError}=await publicClient.auth.signInWithOtp({
+    email,options:{shouldCreateUser:false,emailRedirectTo:redirect}
+   });
+   recovered=!otpError;
+  }
+  if(!recovered){
+   await auth.database.from('business_team_invitations').update({status:'revoked'})
+    .eq('id',id).eq('business_id',businessId).eq('status','pending');
+   return respond({error:'Invitation email could not be delivered. Check email service settings or try again later.'},502);
+  }
  }
  return respond({invitationId:id,status:'pending'},201);
 }
