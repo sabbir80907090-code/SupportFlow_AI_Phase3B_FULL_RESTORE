@@ -34,8 +34,15 @@ export async function POST(req:NextRequest){
  if(!/^[a-f0-9-]{36}$/i.test(businessId)||email.length>254||
  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return respond({error:'Valid email and workspace required'},400);
  const auth=await owner(req,businessId);if(!auth)return respond({error:'Owner access required'},403);
- const base=process.env.SUPPORTFLOW_APP_URL;
- if(!base||!/^https:\/\/[^/]+\/?$/.test(base))return respond({error:'Invitation email redirect is not configured'},503);
+ // In Preview use the Vercel branch URL if no explicit trusted app URL is set.
+ // Never derive an email redirect from untrusted request Host / forwarded headers.
+ const configured=process.env.SUPPORTFLOW_APP_URL;
+ const previewHost=process.env.VERCEL_BRANCH_URL||process.env.VERCEL_URL;
+ const base=configured||
+   (process.env.VERCEL_ENV==='preview'&&previewHost&&/^[a-z0-9-]+\\.vercel\\.app$/i.test(previewHost)
+    ?'https://'+previewHost:undefined);
+ if(!base||!/^https:\/\/[^/]+\/?$/.test(base))
+  return respond({error:'Invitation redirect is not configured. Set SUPPORTFLOW_APP_URL for this environment, or enable Vercel system environment variables.'},503);
  const {data:id,error:saveError}=await auth.database.rpc('create_moderator_invitation',{
   p_business_id:businessId,p_owner_id:auth.user.id,p_email:email
  });
