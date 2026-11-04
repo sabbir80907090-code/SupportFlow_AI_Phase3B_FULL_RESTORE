@@ -33,13 +33,14 @@ export async function POST(req:NextRequest){
  if(!/^[a-f0-9-]{36}$/i.test(businessId)||email.length>254||
  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return respond({error:'Valid email and workspace required'},400);
  const auth=await owner(req,businessId);if(!auth)return respond({error:'Owner access required'},403);
+ const base=process.env.SUPPORTFLOW_APP_URL;
+ if(!base||!/^https:\/\/[^/]+\/?$/.test(base))return respond({error:'Invitation email redirect is not configured'},503);
  const {data:id,error:saveError}=await auth.database.rpc('create_moderator_invitation',{
   p_business_id:businessId,p_owner_id:auth.user.id,p_email:email
  });
  if(saveError)return respond({error:saveError.message},409);
  // Supabase Auth delivers the verification email; do not create any membership yet.
- const base=process.env.SUPPORTFLOW_APP_URL;
- const redirect=base&&/^https:\/\/[^/]+\/?$/.test(base)?base.replace(/\/$/,'')+'/?teamInvite='+id:undefined;
+ const redirect=base.replace(/\/$/,'')+'/?teamInvite='+id;
  const {error:sendError}=await auth.database.auth.admin.inviteUserByEmail(email,{
   ...(redirect?{redirectTo:redirect}:{})
  });
