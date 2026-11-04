@@ -39,7 +39,7 @@ export async function POST(req:NextRequest){
  const configured=process.env.SUPPORTFLOW_APP_URL;
  const previewHost=process.env.VERCEL_BRANCH_URL||process.env.VERCEL_URL;
  const base=configured||
-   (process.env.VERCEL_ENV==='preview'&&previewHost&&/^[a-z0-9-]+\\.vercel\\.app$/i.test(previewHost)
+   (process.env.VERCEL_ENV==='preview'&&previewHost&&/^[a-z0-9-]+\.vercel\.app$/i.test(previewHost)
     ?'https://'+previewHost:undefined);
  if(!base||!/^https:\/\/[^/]+\/?$/.test(base))
   return respond({error:'Invitation redirect is not configured. Set SUPPORTFLOW_APP_URL for this environment, or enable Vercel system environment variables.'},503);
