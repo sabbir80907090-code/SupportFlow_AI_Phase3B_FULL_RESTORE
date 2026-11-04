@@ -49,11 +49,13 @@ export async function GET(req:NextRequest){
    try{
     if(item.channel!=='telegram'||!item.conversation_id)throw Error('unsupported_outbox_item');
     const {data:conversation,error:se}=await db.from('support_conversations')
-     .select('ai_paused,channel,sender_id').eq('business_id',businessId)
+     .select('channel,sender_id').eq('business_id',businessId)
      .eq('id',item.conversation_id).maybeSingle();
-    const {data:settings,error:settingsError}=await db.from('support_ai_settings').select('enabled').eq('business_id',businessId).maybeSingle();
-    if(settingsError||!settings?.enabled)throw Error('business_ai_disabled');
-    if(se||!conversation||conversation.ai_paused||conversation.channel!=='telegram'||
+    if(se)throw Error('conversation_lookup_failed');
+    // This outbox contains explicit staff replies. ai_paused controls AI generation,
+    // and support_ai_settings.enabled controls the AI feature; neither may block
+    // a human reply. Keep tenant, channel and recipient checks before provider send.
+    if(!conversation||conversation.channel!=='telegram'||
        conversation.sender_id!==item.recipient)throw Error('conversation_not_sendable');
     // Telegram message delivery has an ambiguous outcome on network timeouts.
     // Never automatically resend a claimed item: manual review avoids duplicates.
