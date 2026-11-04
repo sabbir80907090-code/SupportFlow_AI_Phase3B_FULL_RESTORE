@@ -21,8 +21,9 @@ export async function GET(req:NextRequest){
   .select('id,email,role,status,created_at,expires_at').eq('business_id',businessId)
   .order('created_at',{ascending:false}).limit(50);
  if(error)return respond({error:'Team invitations unavailable'},503);
- const {data:members}=await auth.database.from('business_members').select('user_id,role')
+ const {data:members,error:membersError}=await auth.database.from('business_members').select('user_id,role')
   .eq('business_id',businessId);
+ if(membersError)return respond({error:'Team list unavailable'},503);
  return respond({invitations:data??[],members:members??[]});
 }
 export async function POST(req:NextRequest){
