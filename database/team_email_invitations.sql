@@ -61,12 +61,16 @@ returns uuid language plpgsql security invoker set search_path = ''
 as $$
 declare v_invite public.business_team_invitations; v_email text := lower(trim(p_email));
 begin
+ -- Lock business first (same order as create_moderator_invitation).
+ -- The first read does not authorize acceptance; the locked re-read below does.
+ select * into v_invite from public.business_team_invitations where id=p_invitation_id;
+ if not found then raise exception 'Invitation not available' using errcode='42501'; end if;
+ perform 1 from public.businesses where id=v_invite.business_id for update;
  select * into v_invite from public.business_team_invitations
   where id=p_invitation_id for update;
  if not found or v_invite.status <> 'pending' or v_invite.expires_at <= now()
     or v_invite.email <> v_email then
    raise exception 'Invitation not available' using errcode='42501'; end if;
- perform 1 from public.businesses where id=v_invite.business_id for update;
  if (select count(*) from public.business_members where business_id=v_invite.business_id) >= 5
     and not exists(select 1 from public.business_members
       where business_id=v_invite.business_id and user_id=p_user_id) then
