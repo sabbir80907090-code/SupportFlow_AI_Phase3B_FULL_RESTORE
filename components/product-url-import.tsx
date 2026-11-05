@@ -62,7 +62,28 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
   }catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Import failed');}
   finally{locked.current=false;if(mounted.current)setBusy(false);}
  }
- async function scanSite(){\n  if(locked.current)return;locked.current=true;setBusy(true);setError('');setNotice('');setProgress('Discovering product pages and sitemap…');\n  try{const source=new URL(url.trim());if(source.protocol!=='https:'||source.username||source.password)throw Error('Enter a public HTTPS website URL.');setLoaded(false);const response=await request({url:source.href},false,true);const data=await response.json();if(!mounted.current)return;showProducts(data.products??[]);setNotice((data.notice??'Website scan complete.')+' Pages scanned: '+(data.pagesScanned??0)+'.');if(data.warnings?.length)setError(data.warnings.join(' '));}\n  catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Website scan failed.');}\n  finally{locked.current=false;if(mounted.current)setBusy(false);}\n }\n function update(id:string,change:Partial<ImportedProduct>){setRows(old=>old.map(r=>r.id===id?{...r,product:{...r.product,...change},error:''}:r));}
+ async function scanSite(){
+  if(locked.current)return;
+  locked.current=true;setBusy(true);setError('');setNotice('');
+  setProgress('Discovering product pages and sitemap…');
+  try{
+   const source=new URL(url.trim());
+   if(source.protocol!=='https:'||source.username||source.password)throw Error('Enter a public HTTPS website URL.');
+   setLoaded(false);
+   const response=await request({url:source.href},false,true);
+   const data=await response.json();
+   if(!mounted.current)return;
+   showProducts(data.products??[]);
+   setNotice((data.notice??'Website scan complete.')+' Pages scanned: '+(data.pagesScanned??0)+'.');
+   if(data.warnings?.length)setError(data.warnings.join(' '));
+  }catch(e){
+   if(mounted.current)setError(e instanceof Error?e.message:'Website scan failed.');
+  }finally{
+   locked.current=false;
+   if(mounted.current)setBusy(false);
+  }
+ }
+ function update(id:string,change:Partial<ImportedProduct>){setRows(old=>old.map(r=>r.id===id?{...r,product:{...r.product,...change},error:''}:r));}
  async function addSelected(){
   if(locked.current||!selected.length)return;
   if(selected.some(r=>productIssue(r.product))){setRows(old=>old.map(r=>r.selected&&!r.saved?{...r,error:productIssue(r.product)}:r));setError('Complete the highlighted product details, then add selected products.');return;}
