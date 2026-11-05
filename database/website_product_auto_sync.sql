@@ -54,3 +54,16 @@ revoke all on public.website_sync_connections,public.website_sync_pages,public.w
 grant select,insert,update,delete on public.website_sync_connections,public.website_sync_pages,public.website_sync_runs to service_role;
 grant select,insert,update on public.business_products to service_role;
 commit;
+
+-- Use the existing Supabase pg_cron + pg_net + Vault worker secret.
+-- This avoids Vercel Hobby's once-per-day Cron restriction.
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+select cron.unschedule(jobid) from cron.job where jobname='supportflow-website-product-sync';
+select cron.schedule('supportflow-website-product-sync','* * * * *',$job$
+ select net.http_get(
+  url := 'https://support-flow-ai-phase3-b-full-resto.vercel.app/api/internal/sync-websites',
+  headers := jsonb_build_object('Authorization','Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='supportflow_worker_cron_secret')),
+  timeout_milliseconds := 65000
+ );
+$job$);
