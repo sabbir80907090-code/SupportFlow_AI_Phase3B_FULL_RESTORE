@@ -25,9 +25,11 @@ export async function POST(req:NextRequest){
  try{
   const website=publicUrl(String(body.url??'')).href;
   const frequency=Number(body.frequencyMinutes??360);if(![60,360,720,1440].includes(frequency))return fail('Choose a supported sync interval');
-  const {data:existing}=await auth.db.from('website_sync_connections').select('id').eq('business_id',id).eq('website_url',website).maybeSingle();
-  if(existing)return fail('This website is already connected');
-  const {data:connection,error}=await auth.db.from('website_sync_connections').insert({business_id:id,website_url:website,frequency_minutes:frequency,created_by:auth.user.id,status:'active',next_sync_at:new Date().toISOString()}).select('id,business_id,website_url,status,frequency_minutes,next_sync_at,last_sync_at,last_status').single();
+  const {data:existing}=await auth.db.from('website_sync_connections').select('id,status').eq('business_id',id).eq('website_url',website).maybeSingle();
+  if(existing&&existing.status!=='disconnected')return fail('This website is already connected');
+  const {data:connection,error}=existing
+   ?await auth.db.from('website_sync_connections').update({status:'active',frequency_minutes:frequency,next_sync_at:new Date().toISOString(),last_error:null,updated_at:new Date().toISOString()}).eq('id',existing.id).eq('business_id',id).select('id,business_id,website_url,status,frequency_minutes,next_sync_at,last_sync_at,last_status').single()
+   :await auth.db.from('website_sync_connections').insert({business_id:id,website_url:website,frequency_minutes:frequency,created_by:auth.user.id,status:'active',next_sync_at:new Date().toISOString()}).select('id,business_id,website_url,status,frequency_minutes,next_sync_at,last_sync_at,last_status').single();
   if(error||!connection)return fail('Could not connect website',503);
   return NextResponse.json({connection},{status:201});
  }catch(e){return fail(e instanceof Error?e.message:'Invalid public website URL')}
