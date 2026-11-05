@@ -37,11 +37,11 @@ export async function processWebsiteSync(db:Db,connection:Connection){
     const result=await readPublicProductPage(page.page_url);
     for(const p of result.products){
      const source=p.sourceUrl||result.url;
-     if(new URL(source).origin!==new URL(connection.website_url).origin)continue;
+     if(new URL(source).origin!==new URL(connection.website_url).origin||!p.price)continue;
      const fingerprint=hash(p);
-     const {data:existing,error:lookupError}=await db.from('business_products').select('id,source_hash').eq('business_id',connection.business_id).eq('source_connection_id',connection.id).eq('source_url',source).maybeSingle();
+     const {data:existing,error:lookupError}=await db.from('business_products').select('id,source_hash,stock_quantity,description,sku,category').eq('business_id',connection.business_id).eq('source_connection_id',connection.id).eq('source_url',source).maybeSingle();
      if(lookupError)throw Error('Product lookup failed');
-     const payload={name:p.name,description:p.description||null,sku:p.sku||null,category:p.category||null,price:p.price===''?0:Number(p.price),currency:/^[A-Z]{3}$/.test(p.currency)?p.currency:'BDT',stock_quantity:p.stock_quantity===''?null:Number(p.stock_quantity),source_connection_id:connection.id,source_url:source,source_hash:fingerprint,updated_at:new Date().toISOString()};
+     const payload={name:p.name,description:p.description||existing?.description||null,sku:p.sku||existing?.sku||null,category:p.category||existing?.category||null,price:Number(p.price),currency:/^[A-Z]{3}$/.test(p.currency)?p.currency:'BDT',stock_quantity:p.stock_quantity===''?(existing?.stock_quantity??null):Number(p.stock_quantity),source_connection_id:connection.id,source_url:source,source_hash:fingerprint,updated_at:new Date().toISOString()};
      if(existing){
       if(existing.source_hash!==fingerprint){const {error}=await db.from('business_products').update(payload).eq('id',existing.id).eq('business_id',connection.business_id);if(error)throw Error('Product update failed');updated++;}
      }else{
