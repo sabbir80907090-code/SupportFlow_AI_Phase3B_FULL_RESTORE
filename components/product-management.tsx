@@ -1,6 +1,7 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {ProductUrlImport} from '@/components/product-url-import';
+import {WebsiteAutoSync} from '@/components/website-auto-sync';
 import {getSupabase} from '@/lib/supabase';
 
 type Product={id:string;name:string;description:string|null;sku:string|null;category:string|null;price:number;currency:string;stock_quantity:number|null;is_active:boolean;image_path:string|null};
@@ -37,6 +38,7 @@ export function ProductManagement({businessId,role}:{businessId:string;role:stri
  return <div className="space-y-5">
  <div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="text-xl font-bold">Product Management</h4><p className="text-sm text-subtle">AI uses active products for prices, stock and descriptions. Matching product photos help answer visual questions.</p></div>{canEdit&&<button className="rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white" onClick={()=>{setImportNotice('');setForm({...empty});setEditing(null);setPhoto(null);setPreview('');setRemovePhoto(false);setShowForm(!showForm)}}>{showForm?'Cancel':'+ Add Product'}</button>}</div>
  {role==='owner'&&!busy&&<ProductUrlImport key={businessId} businessId={businessId} onSaved={refresh}/>}
+ {canEdit&&!busy&&<WebsiteAutoSync key={'sync-'+businessId} businessId={businessId} role={role}/>}
  <div className="grid grid-cols-3 gap-3">{[['Total',items.length],['Active',items.filter(x=>x.is_active).length],['Out of stock',items.filter(x=>x.stock_quantity===0).length]].map(([label,value])=><div key={label} className="rounded-2xl border border-line bg-panel p-4"><p className="text-xs text-subtle">{label}</p><p className="mt-2 text-2xl font-bold">{loading?'…':value}</p></div>)}</div>
  {notice&&<p role="status" className="rounded-xl border border-line bg-panel p-3 text-sm">{notice}</p>}
  {error&&<p role="alert" className="rounded-xl border border-rose-500 p-3 text-sm text-rose-500">{error}</p>}

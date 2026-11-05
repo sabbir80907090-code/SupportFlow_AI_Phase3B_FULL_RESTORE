@@ -77,3 +77,25 @@ Invitations expire after seven days, may be cancelled by the Owner, and cannot b
 - Supabase invitation migration had already been applied to the shared project. No second migration or additional customer email was sent during release.
 - The invited user previously accepted successfully and the database confirmed an Agent membership. Additional adversarial wrong-email/cross-tenant tests are not automated; continue manual permission verification and monitor after launch.
 - The Agent navigation now hides Channels and AI setup, and direct navigation redirects to Inbox. Database RLS remains the authority for tenant reads and owner/admin writes.
+
+
+## 2026-11-05 advanced public website product import (Preview)
+
+- Added a native bounded same-origin website crawler for public HTTPS stores. It reads the starting page, discovers links and sitemap/robots sitemap entries, follows a capped set of product/category/pagination pages, extracts existing Schema.org/JSON-LD/microdata/product-card formats, and de-duplicates up to 100 products.
+- New endpoint: `POST /api/products/site-import`. It requires the existing authenticated workspace owner check and consumes the existing per-business browser-import quota (2/minute, 20/day). It does not write products; user reviews and chooses imports in the UI.
+- Product import UI now offers whole-site scan alongside single-page fetch. The scan is capped at 12 pages, 2 MB per page, 9-second page timeout, and four concurrent page reads. It only follows same-origin HTTPS URLs, rejects local/private network destinations via the existing pinned-DNS fetcher, and skips unavailable pages with warnings.
+- Login, CAPTCHA, bot-protected, and JavaScript-only sites are not bypassed. Optional Firecrawl Browser + AI fallback remains separate and requires its own provider key; native site scan does not require it.
+- Added focused tests for product/category link discovery, pagination, external/unsafe URL rejection and sitemap ranking. Full typecheck/build and Preview browser tests remain to be run before release.
+- No Supabase schema migration was added. The existing quota function is reused. No production deployment has been requested or performed.
+
+
+## 2026-11-05 Website Connect & Auto Sync (Preview implementation)
+
+- Added additive migration `database/website_product_auto_sync.sql` defining tenant-scoped website connections, page queue, run history, and source metadata on business_products. RLS is enabled on sync tables with no authenticated grants; server service-role APIs mediate all operations. Migration has NOT been applied to the shared Supabase project because Preview and Production share that database and no isolated staging Supabase project is available.
+- Added Owner/Admin-only connection management API: connect public HTTPS site, pause/resume, frequency (1h/6h/12h/daily), manual sync, disconnect. Disconnect preserves imported products.
+- Added scheduled worker at `/api/internal/sync-websites`, protected by existing CRON_SECRET. Vercel Cron invokes it every minute. Each invocation processes up to 10 queued pages per connection; page discovery is persisted and occurs once per cycle, allowing large catalogues to continue across invocations.
+- Product records are upserted by workspace + connection + source product URL. Changed name/description/SKU/category/price/currency/stock updates existing rows; new products are inserted. Unavailable pages are retried up to three times. Missing products are never deleted or archived from an incomplete public crawl.
+- Supports same-origin public HTML and sitemap discovery. It does not bypass login, CAPTCHA, bot protection, or JavaScript-only storefronts. Platform APIs and webhook support for Shopify/WooCommerce are future work; this first generic sync uses scheduled public-site checks.
+- Safety limitation: current generic discovery is capped at 10,000 same-origin URLs and page processing at 10 per minute per due connection. This is intended as an initial bounded sync, not an unlimited crawler. Plan-based usage limits, concurrency locking, image refresh, sitemap partitioning beyond the current cap, and robust per-platform adapters need further work.
+- The new sync migration is not yet applied, so the feature cannot be functionally tested against the shared Preview database. Build and static checks must pass before asking for an isolated staging Supabase project or explicit production migration approval.
+- No Production application deployment or Supabase schema change has been made for this feature.
