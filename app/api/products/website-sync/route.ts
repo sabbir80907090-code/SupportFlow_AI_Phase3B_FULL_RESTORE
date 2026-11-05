@@ -36,7 +36,12 @@ export async function PATCH(req:NextRequest){
  let body:any;try{body=await req.json()}catch{return fail('Invalid request')}
  const id=String(body.businessId??''),connectionId=String(body.connectionId??''),auth=await access(req,id);if(!auth)return fail('Owner or Admin access required',403);
  const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
- if(body.action==='sync-now'){\n  const {data:connection,error}=await auth.db.from('website_sync_connections').select('id,business_id,website_url,frequency_minutes,status').eq('id',connectionId).eq('business_id',id).maybeSingle();\n  if(error||!connection||connection.status==='disconnected')return fail('Website connection not found',404);\n  try{return NextResponse.json({result:await processWebsiteSync(auth.db,connection)});}catch{return fail('Website sync failed. Check the sync history.',503);}\n }\n if(body.action==='pause')patch.status='paused';
+ if(body.action==='sync-now'){
+  const {data:connection,error}=await auth.db.from('website_sync_connections').select('id,business_id,website_url,frequency_minutes,status').eq('id',connectionId).eq('business_id',id).maybeSingle();
+  if(error||!connection||connection.status==='disconnected')return fail('Website connection not found',404);
+  try{return NextResponse.json({result:await processWebsiteSync(auth.db,connection)});}catch{return fail('Website sync failed. Check the sync history.',503);}
+ }
+ if(body.action==='pause')patch.status='paused';
  else if(body.action==='resume'){patch.status='active';patch.next_sync_at=new Date().toISOString();}
  else if(body.action==='disconnect')patch.status='disconnected';
  else if(body.action==='frequency'&&[60,360,720,1440].includes(Number(body.frequencyMinutes)))patch.frequency_minutes=Number(body.frequencyMinutes);
