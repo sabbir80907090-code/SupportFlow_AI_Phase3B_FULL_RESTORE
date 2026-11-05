@@ -59,7 +59,7 @@ export function extractSiteCandidates(html:string,baseUrl:string):Candidate[]{
 export function parseSitemapLocations(xml:string,baseUrl:string){
  const base=new URL(baseUrl),origin=base.origin;
  const urls=[...xml.matchAll(/<loc(?:\s[^>]*)?>([\s\S]*?)<\/loc>/gi)].map(m=>safeSameOrigin(m[1].replace(/<!\[CDATA\[|\]\]>/g,''),baseUrl,origin)).filter((v):v is string=>!!v);
- return [...new Set(urls)].slice(0,500);
+ return [...new Set(urls)].slice(0,10000);
 }
 export function rankSitemapCandidates(urls:string[]):Candidate[]{
  return urls.filter(value=>{try{return !excludedPath(new URL(value).pathname)}catch{return false;}})
@@ -85,18 +85,18 @@ async function sitemapDiscovery(origin:string,startHtml:string){
   if(href){const safe=safeSameOrigin(href[1]??href[2],origin+'/',origin);if(safe)sitemapUrls.add(safe);}
  }
  const discovered:string[]=[];
- for(const sitemap of [...sitemapUrls].slice(0,4)){
+ for(const sitemap of [...sitemapUrls].slice(0,10)){
   try{
    const result=await safeFetch(sitemap,'sitemap'),xml=result.body.toString('utf8');
    const locs=parseSitemapLocations(xml,sitemap);
    if(/<sitemapindex\b/i.test(xml)){
-    for(const child of locs.slice(0,3)){
+    for(const child of locs.slice(0,10)){
      try{const nested=await safeFetch(child,'sitemap');discovered.push(...parseSitemapLocations(nested.body.toString('utf8'),child));}catch{/* Ignore an unavailable nested sitemap. */}
     }
    }else discovered.push(...locs);
   }catch{/* Sitemaps are optional; continue with discovered page links. */}
  }
- return [...new Set(discovered)].slice(0,500);
+ return [...new Set(discovered)].slice(0,10000);
 }
 async function mapLimit<T,R>(items:T[],limit:number,work:(item:T)=>Promise<R>){
  const output:R[]=[];let cursor=0;
@@ -148,4 +148,24 @@ export async function crawlPublicStore(value:string){
  for(const page of fetched)if(page.error)warnings.push('Some pages could not be read.');
  const products=dedupeProducts([...firstProducts,...fetched.flatMap(page=>page.products)]);
  return {products,pagesScanned:1+fetched.length,pagesDiscovered:1+unique.size,warnings:[...new Set(warnings)]};
+}
+
+/** Discover a bounded public catalogue URL list for persistent, multi-batch sync. */
+export async function discoverPublicStoreUrls(value:string){
+ const start=publicUrl(value).href,origin=new URL(start).origin,warnings:string[]=[];
+ const first=await safeFetch(start,'page');
+ const links=extractSiteCandidates(first.body.toString('utf8'),first.url);
+ let sitemap:string[]=[];
+ try{sitemap=await sitemapDiscovery(origin,first.body.toString('utf8'));}catch{warnings.push('The sitemap could not be fully read; linked pages will still be checked.');}
+ const urls=new Set<string>([start]);
+ for(const item of links){if(item.kind==='product'||item.kind==='category'||item.kind==='pagination')urls.add(item.url);}
+ for(const item of sitemap){
+  try{const path=new URL(item).pathname;if(!excludedPath(path)&&! /\\.(?:jpg|jpeg|png|gif|webp|svg|pdf|css|js|zip|xml)$/i.test(path))urls.add(item);}catch{/* Ignore malformed sitemap entries. */}
+  if(urls.size>=10000)break;
+ }
+ return {urls:[...urls].slice(0,10000),warnings,pagesDiscovered:urls.size};
+}
+export async function readPublicProductPage(value:string){
+ const page=await safeFetch(value,'page');
+ return {url:page.url,products:parseProductPage(page.body.toString('utf8'),page.url)};
 }
