@@ -67,3 +67,13 @@ Invitations expire after seven days, may be cancelled by the Owner, and cannot b
 - Triggered a new staging/Preview redeployment (`dpl_3g7NZSdYX4hMQdjXY78RYiZXy77Y`) to pick up environment settings. Build was still running at last check.
 - The existing email's `localhost:3000` redirect remains unfixed until Supabase Authentication → URL Configuration is updated. Site URL should use the actual production origin and the exact trusted Preview alias should be allowed under Redirect URLs.
 - No Supabase Auth config change, new email, or user invitation acceptance was performed in this step.
+
+
+## 2026-11-05 production release
+
+- PR #12 merged to main as merge commit `a2d59732a7722b090784a333c727edd3051f564a`.
+- Vercel Production deployment for that exact commit reached READY: `support-flow-ai-phase3-b-full-restore-6v9c3nhal-nax10.vercel.app`; production aliases include `support-flow-ai-phase3-b-full-resto.vercel.app`.
+- Production build completed successfully: Next.js compilation, lint/type validation, static page generation, and serverless output creation.
+- Supabase invitation migration had already been applied to the shared project. No second migration or additional customer email was sent during release.
+- The invited user previously accepted successfully and the database confirmed an Agent membership. Additional adversarial wrong-email/cross-tenant tests are not automated; continue manual permission verification and monitor after launch.
+- The Agent navigation now hides Channels and AI setup, and direct navigation redirects to Inbox. Database RLS remains the authority for tenant reads and owner/admin writes.
