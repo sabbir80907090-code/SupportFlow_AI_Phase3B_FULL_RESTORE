@@ -29,7 +29,8 @@ export async function processWebsiteSync(db:Db,connection:Connection){
    try{
     const result=await readPublicProductPage(page.page_url);
     for(const p of result.products){
-     const source=p.sourceUrl||result.url;\n     if(new URL(source).origin!==new URL(connection.website_url).origin)continue;
+     const source=p.sourceUrl||result.url;
+     if(new URL(source).origin!==new URL(connection.website_url).origin)continue;
      const fingerprint=hash(p);
      const {data:existing,error:lookupError}=await db.from('business_products').select('id,source_hash').eq('business_id',connection.business_id).eq('source_connection_id',connection.id).eq('source_url',source).maybeSingle();
      if(lookupError)throw Error('Product lookup failed');
