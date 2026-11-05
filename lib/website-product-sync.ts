@@ -8,6 +8,10 @@ type Db=ReturnType<typeof adminDb>;
 type Connection={id:string;business_id:string;website_url:string;frequency_minutes:number;status:string};
 function hash(p:ImportedProduct){return createHash('sha256').update(JSON.stringify([p.name,p.description,p.sku,p.category,p.price,p.currency,p.stock_quantity])).digest('hex');}
 export async function processWebsiteSync(db:Db,connection:Connection){
+ const {count:pendingBefore}=await db.from('website_sync_pages').select('id',{count:'exact',head:true}).eq('connection_id',connection.id).eq('status','pending');
+ if((pendingBefore??0)===0){
+  await db.from('website_sync_pages').update({status:'pending',attempts:0,last_error:null,processed_at:null}).eq('connection_id',connection.id);
+ }
  const {data:run,error:runError}=await db.from('website_sync_runs').insert({connection_id:connection.id,status:'running'}).select('id').single();
  if(runError||!run)throw Error('Could not start sync run');
  let discovered=0,processed=0,created=0,updated=0;let fatal='';
@@ -25,7 +29,7 @@ export async function processWebsiteSync(db:Db,connection:Connection){
    try{
     const result=await readPublicProductPage(page.page_url);
     for(const p of result.products){
-     const source=result.url;
+     const source=p.sourceUrl||result.url;\n     if(new URL(source).origin!==new URL(connection.website_url).origin)continue;
      const fingerprint=hash(p);
      const {data:existing,error:lookupError}=await db.from('business_products').select('id,source_hash').eq('business_id',connection.business_id).eq('source_connection_id',connection.id).eq('source_url',source).maybeSingle();
      if(lookupError)throw Error('Product lookup failed');
