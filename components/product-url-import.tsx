@@ -16,14 +16,14 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
  async function checkBrowser(){
   try{
    const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)return false;
-   const response=await fetch('/api/products/browser-import',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});
+   const response=await fetch('/api/products/browser-import',{headers:{'x-business-id':businessId,authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});
    if(!response.ok)return false;const status=await response.json();const available=status.available===true;
    if(mounted.current)setBrowserAvailable(available);return available;
   }catch{return false;}
  }
  async function request(body:object,browser=false){
   const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)throw Error('Sign in again');
-  const result=await fetch(browser?'/api/products/browser-import':'/api/products/import',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(browser?55000:25000)});
+  const result=await fetch(browser?'/api/products/browser-import':'/api/products/import',{method:'POST',headers:{'x-business-id':businessId,'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(browser?55000:25000)});
   if(!result.ok){const failure=await result.json().catch(()=>null);throw new ProductReadError(failure?.error??'Import failed',result.status)};return result;
  }
  function showProducts(products:ImportedProduct[]){
@@ -111,3 +111,4 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
   {notice&&<p role="status" className="text-sm">{notice}</p>}{error&&<p role="alert" className="text-sm text-rose-600">{error}</p>}
  </section>;
 }
+

@@ -17,7 +17,7 @@ const handlers=new Function('NextResponse','randomBytes','randomUUID','authorize
 test('alias login moves to canonical site before creating or overwriting an OAuth session',async()=>{
  const before=inserts;
  const response=await handlers.POST(new NextRequest('https://preview.example.com/api/channels/messenger/oauth',{method:'POST',headers:{origin:'https://preview.example.com'}}));
- assert.equal((await response.json()).url,origin+'/?messenger=canonical');
+ assert.equal((await response.json()).url,origin+'/?messenger=canonical&workspace=owner-business');
  assert.equal(response.headers.has('set-cookie'),false);assert.equal(inserts,before);
 });
 test('canonical login sets secure host cookie and verifies it before Facebook navigation',async()=>{
@@ -35,3 +35,4 @@ test('missing, mismatched and malformed cookies cannot launch Facebook or be rec
   assert.equal(response.headers.get('location'),origin+'/?messenger=cookies');assert.equal(response.headers.has('set-cookie'),false);
  }
 });
+

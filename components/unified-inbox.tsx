@@ -10,13 +10,15 @@ type Queued={id:string;text:string;status:string};
 const formatTime=(value:string)=>new Date(value).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 const channelName=(name:string)=>name==='telegram'?'Telegram':name==='website'?'Website':name.charAt(0).toUpperCase()+name.slice(1);
 
-export function UnifiedInbox({businessId}:{businessId:string}){
+export function UnifiedInbox({businessId,onDraftChange}:{businessId:string;onDraftChange?:(dirty:boolean)=>void}){
  const [conversations,setConversations]=useState<Conversation[]>([]);
  const [selected,setSelected]=useState('');
  const [channel,setChannel]=useState('all');
  const [mode,setMode]=useState('all');
  const [drafts,setDrafts]=useState<Record<string,ReplyDraft>>({});
  function editDraft(id:string,text:string,reset=false){setDrafts(old=>({...old,[id]:{text,requestId:!reset&&old[id]?.requestId?old[id].requestId:crypto.randomUUID()}}));}
+ useEffect(()=>{onDraftChange?.(Object.values(drafts).some(d=>d.text.trim().length>0))},[drafts,onDraftChange]);
+ useEffect(()=>()=>onDraftChange?.(false),[onDraftChange]);
  const [search,setSearch]=useState('');
  const [error,setError]=useState('');
  const [tick,setTick]=useState(0);
@@ -61,12 +63,20 @@ export function UnifiedInbox({businessId}:{businessId:string}){
 function Thread({conversation,businessId,tick,refresh,back,draft,requestId,editDraft}:{conversation:Conversation;businessId:string;tick:number;draft:string;requestId:string|undefined;editDraft:(text:string,reset?:boolean)=>void;refresh:()=>void;back:()=>void}){
  const [messages,setMessages]=useState<Message[]>([]),[queued,setQueued]=useState<Queued[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState(''),[newMessages,setNewMessages]=useState(false);
  const endRef=useRef<HTMLDivElement|null>(null),nearBottom=useRef(true),firstLoad=useRef(true),locked=useRef(false);
+ const [loadingOlder,setLoadingOlder]=useState(false),[hasOlder,setHasOlder]=useState(true);
+ const olderLock=useRef(false);
+ function mergeMessages(previous:Message[],incoming:Message[]){return [...new Map([...previous,...incoming].map(m=>[m.id,m])).values()].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id));}
+ async function loadOlder(){
+  const db=getSupabase(),oldest=messages[0];if(!db||!oldest||olderLock.current)return;olderLock.current=true;setLoadingOlder(true);setError('');
+  try{const {data,error}=await db.from('support_messages').select('id,direction,text,kind,created_at,event_id').eq('business_id',businessId).eq('conversation_id',conversation.id).or(`created_at.lt.${oldest.created_at},and(created_at.eq.${oldest.created_at},id.lt.${oldest.id})`).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100);if(error)throw error;setMessages(previous=>mergeMessages(previous,data??[]));setHasOlder((data?.length??0)===100);}
+  catch{setError('Could not load older messages. Please try again.');}finally{olderLock.current=false;setLoadingOlder(false);}
+ }
  function scrollToLatest(){endRef.current?.parentElement?.scrollTo({top:endRef.current.parentElement.scrollHeight,behavior:'smooth'});nearBottom.current=true;setNewMessages(false);}
 
  useEffect(()=>{let live=true;const db=getSupabase();if(db)Promise.all([
-  db.from('support_messages').select('id,direction,text,kind,created_at,event_id').eq('business_id',businessId).eq('conversation_id',conversation.id).order('created_at',{ascending:false}).limit(100),
+  db.from('support_messages').select('id,direction,text,kind,created_at,event_id').eq('business_id',businessId).eq('conversation_id',conversation.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100),
   db.from('support_outbox').select('id,text,status').eq('business_id',businessId).eq('conversation_id',conversation.id).neq('status','sent').order('created_at',{ascending:false}).limit(30)
- ]).then(([m,q])=>{if(!live)return;setLoading(false);if(m.error||q.error)setLoadError(m.error?.message??q.error?.message??'Load failed');else{setLoadError('');setMessages((m.data??[]).reverse());setQueued(q.data??[])}});return()=>{live=false}},[businessId,conversation.id,tick]);
+ ]).then(([m,q])=>{if(!live)return;setLoading(false);if(m.error||q.error)setLoadError(m.error?.message??q.error?.message??'Load failed');else{setLoadError('');if(firstLoad.current)setHasOlder((m.data?.length??0)===100);setMessages(previous=>mergeMessages(previous,m.data??[]));setQueued(q.data??[])}});return()=>{live=false}},[businessId,conversation.id,tick]);
  const latestMessage=messages.at(-1)?.id,latestQueued=queued[0]?.id;
  useEffect(()=>{if(loading)return;if(firstLoad.current||nearBottom.current){scrollToLatest();firstLoad.current=false;}else setNewMessages(true);},[latestMessage,latestQueued,loading]);
  async function send(e:React.FormEvent){e.preventDefault();const db=getSupabase();if(!db||locked.current||!draft.trim()||!requestId)return;locked.current=true;setBusy(true);setError('');try{const {error}=await db.rpc('queue_support_reply',{p_conversation_id:conversation.id,p_text:draft.trim(),p_request_id:requestId});if(error)throw error;editDraft('',true);nearBottom.current=true;refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{locked.current=false;setBusy(false)}}
@@ -79,6 +89,7 @@ function Thread({conversation,businessId,tick,refresh,back,draft,requestId,editD
   <div onScroll={e=>{const el=e.currentTarget;nearBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<100;if(nearBottom.current)setNewMessages(false)}} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-canvas/30 p-4 sm:p-6">
    {loading&&<p role="status" className="py-12 text-center text-sm text-subtle">Loading messages…</p>}
    {!loading&&!loadError&&!messages.length&&!queued.length&&<p className="py-12 text-center text-sm text-subtle">No messages in this conversation yet.</p>}
+   {hasOlder&&messages.length>0&&<button type="button" disabled={loadingOlder} onClick={()=>void loadOlder()} className="mx-auto block min-h-11 rounded-xl border border-line px-4 text-sm text-brand">{loadingOlder?'Loading older messages…':'Load older messages'}</button>}
    {messages.map(m=><div key={m.id} className={`flex ${m.direction==='outbound'?'justify-end':'justify-start'}`}><div className={`min-w-0 max-w-[92%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${m.direction==='outbound'?'rounded-br-md bg-brand text-white':'rounded-bl-md border border-line bg-panel text-ink'}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.text}</p><p className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70"><Clock size={11}/>{new Date(m.created_at).toLocaleDateString([],{month:'short',day:'numeric'})+' · '+formatTime(m.created_at)}{m.direction==='outbound'&&m.event_id.startsWith('outbox:')&&<span title="Published to chat or accepted by the messaging provider; this does not confirm it was read."> · Sent</span>}</p></div></div>)}
    {queued.map(q=><div key={q.id} className="flex justify-end"><div className="max-w-[92%] rounded-2xl rounded-br-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 sm:max-w-[78%]"><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{q.text}</p><p className="mt-2 text-xs text-amber-600">{q.status==='claimed'?'Sending…':q.status==='needs_review'?'Delivery unconfirmed — needs review':q.status==='queued'?'Waiting to send':'Status unavailable'}</p>{q.status==='needs_review'&&<p className="mt-1 text-xs text-subtle">The provider did not confirm delivery. Check the conversation in {channelName(conversation.channel)} before sending again to avoid a duplicate.</p>}</div></div>)}
    <div ref={endRef}/>
@@ -90,3 +101,4 @@ function Thread({conversation,businessId,tick,refresh,back,draft,requestId,editD
   <p className="px-4 pb-3 text-xs text-subtle">{draft.length}/{conversation.channel==='messenger'?2000:4096} · Ctrl/⌘ + Enter to send. Replies pause AI. Drafts stay while switching chats; leaving Inbox or reloading clears them.</p>
  </section>
 }
+

@@ -9,9 +9,12 @@ export async function authorizedBusiness(req:NextRequest){
  if(!bearer.startsWith('Bearer '))return null;
  const database=db();const {data:{user},error}=await database.auth.getUser(bearer.slice(7));
  if(error||!user)return null;
- const {data:owned,error:oe}=await database.from('businesses').select('id').eq('owner_id',user.id).order('created_at',{ascending:true}).limit(2);
- if(oe||!owned||owned.length!==1)return null;
- return {database,businessId:owned[0].id};
+ const businessId=req.headers.get('x-business-id')??'';
+ // Never infer a workspace from the user's first or only owned business.
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(businessId))return null;
+ const {data:owned,error:oe}=await database.from('businesses').select('id').eq('id',businessId).eq('owner_id',user.id).maybeSingle();
+ if(oe||!owned)return null;
+ return {database,businessId:owned.id};
 }
 export function failure(message:string,status=400){return NextResponse.json({error:message},{status,headers:{'Cache-Control':'no-store'}});}
 export async function telegramApi<T>(token:string,method:string,body?:object):Promise<T>{
@@ -24,3 +27,4 @@ export function newConnectionId(){return randomUUID();}
 export function newWebhookSecret(){return randomBytes(32).toString('hex');}
 export function seal(token:string,secret:string,id:string){return {token:encryptChannelCredential(token,id),secret:encryptChannelCredential(secret,id)};}
 export function unseal(token:string,secret:string,id:string){return {token:decryptChannelCredential(token,id),secret:decryptChannelCredential(secret,id)};}
+

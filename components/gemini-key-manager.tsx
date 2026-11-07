@@ -5,10 +5,10 @@ type Provider='gemini'|'openai'|'anthropic';
 type Key={id:string;label:string;provider:Provider;model:string;key_hint:string;priority:number;enabled:boolean};
 const models:Record<Provider,string[]>={gemini:['gemini-flash-lite-latest','gemini-flash-latest','gemini-pro-latest'],openai:['gpt-4.1-mini','gpt-4.1','gpt-4o-mini'],anthropic:['claude-sonnet-4-5','claude-haiku-4-5','claude-opus-4-1']};
 const names:Record<Provider,string>={gemini:'Google Gemini',openai:'OpenAI',anthropic:'Anthropic Claude'};
-export function GeminiKeyManager({canEdit}:{canEdit:boolean}){
+export function GeminiKeyManager({businessId,canEdit}:{businessId:string;canEdit:boolean}){
  const [keys,setKeys]=useState<Key[]>([]),[adding,setAdding]=useState(false),[label,setLabel]=useState('Primary AI Key'),[secret,setSecret]=useState(''),[provider,setProvider]=useState<Provider>('gemini'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [modelDraft,setModelDraft]=useState<Record<string,string>>({});
- async function request(method:string,body?:object){const db=getSupabase();if(!db)throw Error('Sign in required');const {data}=await db.auth.getSession();if(!data.session)throw Error('Sign in required');const res=await fetch('/api/ai/keys',{method,headers:{authorization:'Bearer '+data.session.access_token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store'});const json=await res.json();if(!res.ok)throw Error(json.error??'Request failed');return json;}
+ async function request(method:string,body?:object){const db=getSupabase();if(!db)throw Error('Sign in required');const {data}=await db.auth.getSession();if(!data.session)throw Error('Sign in required');const res=await fetch('/api/ai/keys',{method,headers:{'x-business-id':businessId,authorization:'Bearer '+data.session.access_token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store'});const json=await res.json();if(!res.ok)throw Error(json.error??'Request failed');return json;}
  async function load(){const result=await request('GET');setKeys(result.keys);setModelDraft(Object.fromEntries((result.keys as Key[]).map(k=>[k.id,k.model])))}
  useEffect(()=>{void load().catch(e=>setError(e.message))},[]);
  async function act(method:string,body:object){setBusy(true);setError('');setNotice('');try{await request(method,body);if(method==='POST'){setSecret('');setAdding(false)}await load();setNotice(method==='POST'?'API key verified and saved.':method==='DELETE'?'API key deleted.':'Settings saved.')}catch(e){setError(e instanceof Error?e.message:'Operation failed')}finally{setBusy(false)}}
@@ -23,3 +23,4 @@ export function GeminiKeyManager({canEdit}:{canEdit:boolean}){
  {error&&<p role="alert" className="text-sm text-rose-500">{error}</p>}{notice&&<p role="status" className="text-sm text-subtle">{notice}</p>}
  </div>;
 }
+
