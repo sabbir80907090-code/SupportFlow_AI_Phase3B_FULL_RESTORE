@@ -28,3 +28,9 @@ Status: review branch; production unchanged. No database migration or permission
 
 ## Remaining roadmap
 Server-wide customer/conversation search and pagination; unread/assigned/resolved inbox state; saved replies; full onboarding completion tracking; paid subscriptions and usage metering; team name/resend/member removal; bilingual UI. These require additional product/backend work and are not claimed complete by this change.
+
+## Password visibility follow-up — 2026-11-08
+- Replaced the separate Show/Hide password text button with an eye/eye-off icon inside the right edge of the Login/Register password input. Reserved input padding prevents text overlap; the icon uses a 44px-wide touch target.
+- Kept the password masked by default and preserved the existing toggle state, autocomplete, validation and sign-in/signup behavior. The icon has a screen-reader label and is type=button, so it does not submit the form.
+- Verified the saved source matches the patch, icon imports exist, the visible text toggle is removed, and the control is positioned inside the input wrapper. UI-only change; no workspace authorization, customer data, subscriptions or limits changed.
+- Code commit: a49cfdb78c5b4db453af5664f02bc978bac191d8. Vercel Preview build started; check deployment dpl_9KueZUrN2X8kpQeKFQsQfUA8uoRo for its final result. Production unchanged. Mobile browser interaction verification remains outstanding.
