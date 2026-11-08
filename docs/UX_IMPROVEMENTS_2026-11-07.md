@@ -1,7 +1,7 @@
 # SupportFlow AI usability and workspace isolation
 
 Date: 2026-11-07. Base: main aaf150bf06bf6c2e88e06e6408c94aa94f96e22e.
-Status: review branch; production unchanged. No database migration or permission expansion.
+Status: production release authorized by the user on 2026-11-08; merging PR #14 into main. Deployment result must be confirmed in Vercel. No database migration or permission expansion.
 
 ## Implemented
 - Channel connections, AI key management and remote product import send the selected workspace explicitly. The shared server helper validates the signed-in user and the selected business owner; it never guesses the only owned business. Missing/invalid workspace headers fail closed. Existing external callers must now send `x-business-id`.
@@ -34,3 +34,8 @@ Server-wide customer/conversation search and pagination; unread/assigned/resolve
 - Kept the password masked by default and preserved the existing toggle state, autocomplete, validation and sign-in/signup behavior. The icon has a screen-reader label and is type=button, so it does not submit the form.
 - Verified the saved source matches the patch, icon imports exist, the visible text toggle is removed, and the control is positioned inside the input wrapper. UI-only change; no workspace authorization, customer data, subscriptions or limits changed.
 - Code commit: a49cfdb78c5b4db453af5664f02bc978bac191d8. Vercel Preview build started; check deployment dpl_9KueZUrN2X8kpQeKFQsQfUA8uoRo for its final result. Production unchanged. Mobile browser interaction verification remains outstanding.
+
+## Main release — 2026-11-08
+- User requested all updates from the current preview be merged into main and deployed. Scope: PR #14, including the password eye icon follow-up; unrelated historical branches are not part of this release.
+- Latest code/documentation head 3677d3e664e11257612c4ddf168f27351c6ffe66 passed Vercel Preview. GitHub reports a clean merge against main aaf150bf06bf6c2e88e06e6408c94aa94f96e22e. Earlier validation: TypeScript and 79 tests passed as recorded above.
+- Release proceeds with the authenticated multi-workspace, mobile interaction and password recovery redirect/email end-to-end verification still outstanding. No credentials, customer records, database schema or subscription settings changed.
