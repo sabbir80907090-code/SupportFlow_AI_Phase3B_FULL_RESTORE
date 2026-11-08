@@ -3,12 +3,12 @@ import {useEffect,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
 type Connection={id:string;display_name:string;external_account_id:string;enabled:boolean};
 type Page={id:string;name:string};
-export function MessengerChannel(){
+export function MessengerChannel({businessId}:{businessId:string}){
  const [connection,setConnection]=useState<Connection|null>(null),[pages,setPages]=useState<Page[]>([]),[page,setPage]=useState('');
  const [configured,setConfigured]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false),[error,setError]=useState('');
  async function request(path:string,method='GET',body?:object){
   const sb=getSupabase();if(!sb)throw Error('Sign in required');const {data}=await sb.auth.getSession();if(!data.session)throw Error('Sign in required');
-  const response=await fetch('/api/channels/messenger/'+path,{method,headers:{authorization:'Bearer '+data.session.access_token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store',credentials:'same-origin'});
+  const response=await fetch('/api/channels/messenger/'+path,{method,headers:{'x-business-id':businessId,authorization:'Bearer '+data.session.access_token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store',credentials:'same-origin'});
   const result=await response.json();if(!response.ok)throw Error(result.error||'Facebook connection failed');return result;
  }
  async function refresh(){try{const data=await request('connect');setConfigured(data.configured);setConnection(data.connection);setPages(data.pages||[]);setPage(data.pages?.[0]?.id||'');}catch(e){setError(e instanceof Error?e.message:'Could not load Messenger');}finally{setLoading(false);}}
@@ -45,3 +45,4 @@ export function MessengerChannel(){
   {confirm&&<div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"><div role="alertdialog" aria-modal="true" aria-labelledby="disconnect-messenger" className="w-full max-w-md rounded-2xl border border-line bg-panel p-6"><h3 id="disconnect-messenger" className="text-xl font-bold">Disconnect Facebook Page?</h3><p className="mt-3 text-sm text-subtle">New messages and replies for {connection?.display_name} will stop. Existing inbox history will remain.</p><div className="mt-6 flex justify-end gap-3"><button disabled={busy} onClick={()=>setConfirm(false)} className="rounded-xl border border-line px-4 py-2">Cancel</button><button disabled={busy} onClick={()=>void act('disconnect')} className="rounded-xl bg-rose-600 px-4 py-2 text-white">{busy?'Disconnecting…':'Disconnect'}</button></div></div></div>}
  </section>;
 }
+
