@@ -21,9 +21,9 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
    if(mounted.current)setBrowserAvailable(available);return available;
   }catch{return false;}
  }
- async function request(body:object,browser=false){
+ async function request(body:object,browser=false,site=false){
   const session=await getSupabase()?.auth.getSession();const token=session?.data.session?.access_token;if(!token)throw Error('Sign in again');
-  const result=await fetch(browser?'/api/products/browser-import':'/api/products/import',{method:'POST',headers:{'x-business-id':businessId,'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(browser?55000:25000)});
+  const result=await fetch(site?'/api/products/site-import':browser?'/api/products/browser-import':'/api/products/import',{method:'POST',headers:{'x-business-id':businessId,'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(body),signal:AbortSignal.timeout(browser?55000:25000)});
   if(!result.ok){const failure=await result.json().catch(()=>null);throw new ProductReadError(failure?.error??'Import failed',result.status)};return result;
  }
  function showProducts(products:ImportedProduct[]){
@@ -62,6 +62,27 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
   }catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Import failed');}
   finally{locked.current=false;if(mounted.current)setBusy(false);}
  }
+ async function scanSite(){
+  if(locked.current)return;
+  locked.current=true;setBusy(true);setError('');setNotice('');
+  setProgress('Discovering product pages and sitemap…');
+  try{
+   const source=new URL(url.trim());
+   if(source.protocol!=='https:'||source.username||source.password)throw Error('Enter a public HTTPS website URL.');
+   setLoaded(false);
+   const response=await request({url:source.href},false,true);
+   const data=await response.json();
+   if(!mounted.current)return;
+   showProducts(data.products??[]);
+   setNotice((data.notice??'Website scan complete.')+' Pages scanned: '+(data.pagesScanned??0)+'.');
+   if(data.warnings?.length)setError(data.warnings.join(' '));
+  }catch(e){
+   if(mounted.current)setError(e instanceof Error?e.message:'Website scan failed.');
+  }finally{
+   locked.current=false;
+   if(mounted.current)setBusy(false);
+  }
+ }
  function update(id:string,change:Partial<ImportedProduct>){setRows(old=>old.map(r=>r.id===id?{...r,product:{...r.product,...change},error:''}:r));}
  async function addSelected(){
   if(locked.current||!selected.length)return;
@@ -91,10 +112,10 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
   finally{locked.current=false;if(mounted.current){setBusy(false);setSaving(false);}}
  }
  return <section className="space-y-4 rounded-2xl border border-line bg-panel p-4 sm:p-5" aria-label="Import products from website">
-  <div><h5 className="font-bold">Import products from website</h5><p className="mt-1 text-sm text-subtle">Paste a product or supported category page → select products → review details → add selected.</p><p className="mt-1 text-xs text-subtle">Up to 100 readable products per page. Only the linked page is read; other pages and pagination are not included. This is a one-time copy.</p></div>
+  <div><h5 className="font-bold">Import products from website</h5><p className="mt-1 text-sm text-subtle">Paste a public store or category URL → scan product pages and sitemap → review details → add selected.</p><p className="mt-1 text-xs text-subtle">Whole-site scan checks up to 12 same-domain pages and imports up to 100 products per scan. Login-only, CAPTCHA, blocked, and JavaScript-only pages may be skipped. This is a one-time copy.</p></div>
   <p className="text-xs text-subtle">We try standard reading first, then Browser + AI automatically when needed. Browser reading uses service credits and allows up to 20 attempts per workspace per day. Login, CAPTCHA and blocked pages may not work.</p>
   {browserAvailable===false&&<p role="status" className="text-xs text-subtle">Browser reading is not connected. You can still import a saved page below.</p>}
-  <div className="flex flex-col gap-2 sm:flex-row"><input aria-label="Product website URL" type="url" maxLength={2048} disabled={busy} className={field+' flex-1'} placeholder="https://your-store.com/products" value={url} onChange={e=>setUrl(e.target.value)}/><button disabled={busy||!url.trim()} onClick={()=>void load()} className="rounded-xl bg-brand px-4 py-3 text-sm text-white">{busy&&!saving?'Reading products…':'Fetch products'}</button></div>
+  <div className="flex flex-col gap-2"><input aria-label="Product website URL" type="url" maxLength={2048} disabled={busy} className={field} placeholder="https://your-store.com or /collections/products" value={url} onChange={e=>setUrl(e.target.value)}/><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><button disabled={busy||!url.trim()} onClick={()=>void scanSite()} className="rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white">{busy&&!saving?'Scanning website…':'Scan whole website'}</button><button disabled={busy||!url.trim()} onClick={()=>void load()} className="rounded-xl border border-line px-4 py-3 text-sm">Fetch this page only</button></div></div>
   {busy&&!saving&&progress&&<p role="status" aria-live="polite" className="text-sm">{progress}</p>}
   <details className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-sm">Website blocked the request? Import a saved page</summary><p className="mt-2 text-xs text-subtle">Open the product list in your browser, wait for it to load, then use Save page as → HTML. Keep the original page URL above and choose the .html file below. Up to 2 MB; only readable products in that copy are included.</p><label className="mt-3 block text-sm">Saved HTML page<input className={field+' mt-1'} type="file" accept=".html,.htm,text/html" disabled={busy||!url.trim()} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void loadFile(file);}}/></label></details>
   {loaded&&rows.length===0&&<p role="status" className="text-sm text-subtle">No supported products found. Try a direct product page.</p>}
@@ -111,4 +132,3 @@ export function ProductUrlImport({businessId,onSaved}:{businessId:string;onSaved
   {notice&&<p role="status" className="text-sm">{notice}</p>}{error&&<p role="alert" className="text-sm text-rose-600">{error}</p>}
  </section>;
 }
-
