@@ -11,6 +11,8 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
  const [email,setEmail]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [invitations,setInvitations]=useState<Invitation[]>([]),[members,setMembers]=useState<Member[]>([]);
  const [loading,setLoading]=useState(true);
+ const reserved=invitations.filter(i=>i.status==='pending'&&new Date(i.expires_at)>new Date()).length;
+ const seatsUsed=members.length+reserved;
  const request=useCallback(async(method:'GET'|'POST'|'DELETE',body?:object)=>{
   const sb=getSupabase();
   const {data:{session}}=await sb!.auth.getSession();
@@ -49,11 +51,12 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
  return <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
   <h4 className="text-lg font-bold">Team & moderators</h4>
   <p className="mt-1 text-sm text-subtle">Invite a moderator by email. They get Agent access to this workspace only. Limit: 5 team seats including the owner.</p>
+  {!loading&&<p role="status" className="mt-3 rounded-xl bg-canvas p-3 text-sm">Team seats: {seatsUsed}/5 used · {Math.max(0,5-seatsUsed)} available. {reserved} reserved by pending invitations. Current invitation limit: 10 attempts per workspace per day.</p>}
   <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row">
    <label className="min-w-0 flex-1 text-sm">Moderator email
     <input className={field+' mt-1'} type="email" required maxLength={254} autoComplete="email" placeholder="moderator@example.com" value={email} disabled={busy} onChange={e=>setEmail(e.target.value)}/>
    </label>
-   <button className={button+' sm:self-end'} disabled={busy||!email.trim()}>{busy?'Please wait…':'Send invitation'}</button>
+   <button className={button+' sm:self-end'} disabled={busy||loading||seatsUsed>=5||!email.trim()}>{busy?'Please wait…':'Send invitation'}</button>
   </form>
   {notice&&<p role="status" className="mt-3 text-sm text-emerald-600">{notice}</p>}
   {error&&<p role="alert" className="mt-3 text-sm text-rose-600">{error}</p>}
@@ -69,3 +72,4 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
   </div>
  </section>;
 }
+
