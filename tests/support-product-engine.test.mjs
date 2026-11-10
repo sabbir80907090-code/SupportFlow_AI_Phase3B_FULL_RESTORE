@@ -7,6 +7,7 @@ function compile(path,bindings,returnValue){
  const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  return new Function(...Object.keys(bindings),js+';return '+returnValue)(...Object.values(bindings));
 }
+const knowledge=compile('../lib/knowledge-import.ts',{},'{knowledgeContext}');
 const context=compile('../lib/support-product-context.ts',{},'{selectCatalog,catalogFacts,validCatalogImagePath,providerHistory}');
 const orderContext=compile('../lib/support-order-intake.ts',{},'{orderOutputInstruction,parseOrderAnswer,isOrderControl,orderResponseSchema,safeOrderFormatFallback}');
 for(const broken of [false,true])test((broken?'malformed model JSON still queues a safe reply without creating an order: ':'')+'engine scopes catalog, downloads private image, falls back to text on unsupported vision and queues one reply',async()=>{
@@ -18,7 +19,7 @@ for(const broken of [false,true])test((broken?'malformed model JSON still queues
   const q={select(){return q},eq(field,value){filters.push({table,field,value});return q},order(){return q},limit(){return q},single:async()=>({data:data[table]}),maybeSingle:async()=>({data:table==='support_messages'?{id:'inbound'}:data[table]}),upsert:async(payload)=>{outbox.push(payload);return {}},then(resolve){return Promise.resolve({data:data[table]}).then(resolve)}};return q;
  }};
  const request=async(url,options)=>{const body=JSON.parse(options.body);requests.push(body);if(requests.length===1)return new Response('{}',{status:400});return new Response(JSON.stringify({candidates:[{content:{parts:[{text:broken?'{broken':JSON.stringify({reply:'Laptop price is BDT 1234. Please confirm colour with staff.',order:null})}]}}]}),{status:200});};
- const run=compile('../lib/support-ai-engine.ts',{...context,...orderContext,adminDb:()=>db,decryptChannelCredential:()=> 'test-key',fetch:request,process:{env:{NEXT_PUBLIC_SUPABASE_URL:'https://example.com',SUPABASE_SERVICE_ROLE_KEY:'test'}},Buffer},'processSupportAiJob');
+ const run=compile('../lib/support-ai-engine.ts',{...context,...orderContext,...knowledge,adminDb:()=>db,decryptChannelCredential:()=> 'test-key',fetch:request,process:{env:{NEXT_PUBLIC_SUPABASE_URL:'https://example.com',SUPABASE_SERVICE_ROLE_KEY:'test'}},Buffer},'processSupportAiJob');
  assert.equal(await run('job'),'queued');if(broken){assert.equal(outbox[0].p_patch,null);assert.match(outbox[0].p_reply,/could not process/)}
  assert.equal(requests[0].generationConfig.responseMimeType,'application/json');assert.deepEqual(requests[0].generationConfig.responseSchema.required,['reply','order']);assert.equal(downloads,1);assert.equal(outbox.length,1);assert.equal(outbox[0].business_id,tenant);
  assert.equal(filters.some(x=>x.table==='business_products'&&x.field==='business_id'&&x.value===tenant),true);

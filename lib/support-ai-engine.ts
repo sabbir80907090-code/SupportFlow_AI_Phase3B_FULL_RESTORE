@@ -1,3 +1,4 @@
+import {knowledgeContext} from '@/lib/knowledge-import';
 import {orderOutputInstruction,parseOrderAnswer,isOrderControl,orderResponseSchema,safeOrderFormatFallback} from '@/lib/support-order-intake';
 import {catalogFacts,selectCatalog,validCatalogImagePath,providerHistory,type CatalogImage} from '@/lib/support-product-context';
 import {adminDb} from '@/lib/telegram-server';
@@ -35,11 +36,11 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
    const {data:storedKeys,error:keysError}=await db.from('support_ai_api_keys').select('id,provider,model,key_ciphertext').eq('business_id',job.business_id).eq('enabled',true).order('priority',{ascending:true}).limit(10);
    if(keysError)throw Error('business_keys_unavailable');
    if(!storedKeys?.length)throw Error('business_ai_key_missing');
-   const {data:articles,error:ke}=await db.from('knowledge_articles').select('title,content,category').eq('business_id',job.business_id).order('updated_at',{ascending:false}).limit(12);
+   const {data:articles,error:ke}=await db.from('knowledge_articles').select('title,content,category').eq('business_id',job.business_id).order('updated_at',{ascending:false}).limit(500);
    if(ke)throw Error('knowledge_missing');
    const {data:products,error:pe}=await db.from('business_products').select('id,name,description,sku,category,price,currency,stock_quantity,image_path').eq('business_id',job.business_id).eq('is_active',true).order('updated_at',{ascending:false}).limit(500);
    if(pe)throw Error('product_knowledge_unavailable');
-   const facts=(articles??[]).map(a=>'['+a.category+'] '+a.title+': '+a.content).join('\n').slice(0,9000);
+   const facts=knowledgeContext(articles??[],messages.filter(m=>m.direction==='inbound').slice(0,2).map(m=>m.text).join(' '));
    const inbound=messages.filter(m=>m.direction==='inbound');
    const catalog=selectCatalog(products??[],String(inbound[0]?.text??''),String(inbound[1]?.text??''));
    const productFacts=catalogFacts(catalog.selected,(products??[]).length);
