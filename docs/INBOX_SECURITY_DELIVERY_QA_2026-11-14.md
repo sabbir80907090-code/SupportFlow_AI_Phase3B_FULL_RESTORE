@@ -23,3 +23,12 @@ Other advisor notices include mutable `public.match_documents` search path, `pg_
 - No database migrations, tokens, credentials, customer personal data, subscription configuration or usage limits were modified.
 - Preview build and automated GitHub Actions test results should be checked; production release requires separate verified status. The SQL role test was executed via a rollback-only transaction, not from GitHub Actions.
 - Remaining: real agent-to-agent browsers, concurrent claims, live channel delivery and platform-provider acknowledgements, unresolved `needs_review` item investigation using provider evidence, and safe remediation of legacy n8n tables.
+
+## Production release confirmation — 2026-11-14
+- PR #17 merged into `main` at commit `791fa07bbdc3df6eb4ddd169f84f98dc263a23ac`.
+- GitHub Actions **SupportFlow checks** passed on this commit (typecheck and Node unit tests).
+- Vercel deployment `dpl_5N51Rzay8V732F4YEgGLc46Gx6U6` reached **READY** with production alias `support-flow-ai-phase3-b-full-resto.vercel.app`.
+- App behavior change is confined to authenticated read-only internal readiness response counts: outbox `claimed` now appears as `deliveryQueue.processing`, and `needs_review` is exposed as `deliveryQueue.needsReview`.
+- No n8n legacy RLS/grant change was made; the two exposed n8n tables remain a **high-priority unresolved risk**. Do not mistake this QA release for resolving that exposure.
+- No production messages were sent, no delivery-uncertain messages retried, and no customer records or privileges were changed.
+- Still pending: authenticated full-browser E2E with two unrelated actual workspaces, provider acknowledgements, and safe legacy n8n permission remediation after workflow inventory.
