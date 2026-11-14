@@ -17,6 +17,7 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
  const [channel,setChannel]=useState('all');
  const [mode,setMode]=useState('all');
  const [priority,setPriority]=useState<'all'|'attention'|'mine'>('all');
+ const [priorityReady,setPriorityReady]=useState(false);
  const [userId,setUserId]=useState('');
  useEffect(()=>{let live=true;getSupabase()?.auth.getUser().then(({data})=>{if(live)setUserId(data.user?.id??'')});return()=>{live=false}},[businessId]);
  const [drafts,setDrafts]=useState<Record<string,ReplyDraft>>({});
@@ -31,13 +32,22 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
  useEffect(()=>{let live=true;const db=getSupabase();if(!db){setLoading(false);setError('Inbox is unavailable. Reload the page and sign in again.');return;}
   db.from('support_conversations').select('id,channel,sender_id,display_name,ai_paused,last_message_at,assigned_to,last_inbound_at,last_outbound_at').eq('business_id',businessId).order('last_message_at',{ascending:false}).limit(100).then(({data,error})=>{
    if(!live)return;setLoading(false);
-   if(error)setError('Smart Inbox needs its database upgrade. Ask the workspace owner to finish setup.');else{setError('');setConversations((data??[]) as Conversation[]);setSelected(prev=>prev===''?'':(data??[]).some(c=>c.id===prev)?prev:'')}
+   if(error){
+    // An unapplied migration must never break the existing working Inbox.
+    db.from('support_conversations').select('id,channel,sender_id,display_name,ai_paused,last_message_at').eq('business_id',businessId).order('last_message_at',{ascending:false}).limit(100).then(({data:oldData,error:oldError})=>{
+     if(!live)return;
+     setPriorityReady(false);setPriority('all');
+     if(oldError){setError(oldError.message);return;}
+     const legacy=(oldData??[]).map(c=>({...c,assigned_to:null,last_inbound_at:null,last_outbound_at:null}));
+     setConversations(legacy);setSelected(prev=>prev&&legacy.some(c=>c.id===prev)?prev:'');setError('');
+    });
+   }else{setPriorityReady(true);setError('');setConversations((data??[]) as Conversation[]);setSelected(prev=>prev===''?'':(data??[]).some(c=>c.id===prev)?prev:'')}
   });return()=>{live=false}
  },[businessId,tick]);
  const active=conversations.find(c=>c.id===selected);
  const now=Date.now();
  const attention=conversations.filter(c=>needsAttention(c,now)).length;
- const filtered=sortByPriority(conversations.filter(c=>(channel==='all'||c.channel===channel)&&(mode==='all'||(mode==='human'?c.ai_paused:!c.ai_paused))&&(priority==='all'||(priority==='attention'?needsAttention(c,now):!!userId&&c.assigned_to===userId))&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.trim().toLowerCase()))),now);
+ const filtered=(priorityReady?sortByPriority(conversations.filter(c=>(channel==='all'||c.channel===channel)&&(mode==='all'||(mode==='human'?c.ai_paused:!c.ai_paused))&&(priority==='all'||(priority==='attention'?needsAttention(c,now):!!userId&&c.assigned_to===userId))&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.trim().toLowerCase()))),now):conversations.filter(c=>(channel==='all'||c.channel===channel)&&(mode==='all'||(mode==='human'?c.ai_paused:!c.ai_paused))&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.trim().toLowerCase()))));
  return <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
   <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
    <div><h2 className="text-left text-lg font-bold tracking-tight text-ink">Team inbox</h2><p className="hidden md:block mt-1 text-left text-xs text-subtle">Latest 100 conversations · waiting is based on message times, not read receipts.</p></div>
@@ -48,7 +58,7 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
    <aside className={`min-w-0 border-line lg:border-r ${active?'hidden lg:flex':'flex'} flex-col`}>
     <div className="space-y-3 border-b border-line p-4">
      <div className="flex items-center justify-between"><span className="text-sm font-semibold text-ink">Conversations</span><span className="rounded-full bg-canvas px-2.5 py-1 text-xs text-subtle">{filtered.length}</span></div>
-     <div className="flex flex-wrap gap-1" aria-label="Inbox priority filters">{([['all','All'],['attention',`Needs attention (${attention})`],['mine','My chats']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={priority===value} onClick={()=>setPriority(value)} className={`min-h-10 rounded-lg px-3 text-xs font-medium ${priority===value?'bg-brand text-white':'border border-line text-ink'}`}>{label}</button>)}</div>
+     {priorityReady&&<div className="flex flex-wrap gap-1" aria-label="Inbox priority filters">{([['all','All'],['attention',`Needs attention (${attention})`],['mine','My chats']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={priority===value} onClick={()=>setPriority(value)} className={`min-h-10 rounded-lg px-3 text-xs font-medium ${priority===value?'bg-brand text-white':'border border-line text-ink'}`}>{label}</button>)}</div>}
      <label className="flex items-center gap-2 rounded-xl border border-line bg-canvas px-3"><Search size={16} className="shrink-0 text-subtle"/><input aria-label="Search conversations" placeholder="Search name or ID" value={search} onChange={e=>setSearch(e.target.value)} className="min-w-0 w-full bg-transparent py-2.5 text-sm text-ink outline-none"/></label>
      <select aria-label="Filter channel" className="w-full rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink" value={channel} onChange={e=>setChannel(e.target.value)}>{['all','telegram','messenger','whatsapp','website'].map(c=><option key={c} value={c}>{c==='all'?'All channels':channelName(c)}</option>)}</select>
      <div className="flex flex-wrap gap-1" aria-label="Conversation mode">{[['all','All'],['human','Human takeover'],['ai','AI not paused']].map(([value,label])=><button key={value} type="button" aria-pressed={mode===value} onClick={()=>setMode(value)} className={`min-h-10 rounded-lg px-2 py-2 text-xs ${mode===value?'bg-brand text-white':'border border-line text-ink'}`}>{label}</button>)}</div>
@@ -63,11 +73,11 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
      {loading&&!filtered.length&&<p className="p-5 text-center text-sm text-subtle">Loading conversations…</p>}
     </div>
    </aside>
-   {active?<Thread key={active.id} conversation={active} businessId={businessId} tick={tick} role={role} userId={userId} draft={drafts[active.id]?.text??''} requestId={drafts[active.id]?.requestId} editDraft={(text,reset)=>editDraft(active.id,text,reset)} refresh={()=>setTick(n=>n+1)} back={()=>setSelected('')}/>:<div className="hidden min-h-[440px] flex-col items-center justify-center gap-3 p-8 text-center text-subtle lg:flex"><MessageCircle size={36}/><p className="font-medium">Select a conversation</p><p className="text-sm">Choose a customer to view their messages.</p></div>}
+   {active?<Thread key={active.id} conversation={active} businessId={businessId} tick={tick} role={role} userId={userId} priorityReady={priorityReady} draft={drafts[active.id]?.text??''} requestId={drafts[active.id]?.requestId} editDraft={(text,reset)=>editDraft(active.id,text,reset)} refresh={()=>setTick(n=>n+1)} back={()=>setSelected('')}/>:<div className="hidden min-h-[440px] flex-col items-center justify-center gap-3 p-8 text-center text-subtle lg:flex"><MessageCircle size={36}/><p className="font-medium">Select a conversation</p><p className="text-sm">Choose a customer to view their messages.</p></div>}
   </div>
  </div>
 }
-function Thread({conversation,businessId,tick,role,userId,refresh,back,draft,requestId,editDraft}:{conversation:Conversation;businessId:string;tick:number;role:'owner'|'admin'|'agent';userId:string;draft:string;requestId:string|undefined;editDraft:(text:string,reset?:boolean)=>void;refresh:()=>void;back:()=>void}){
+function Thread({conversation,businessId,tick,role,userId,priorityReady,refresh,back,draft,requestId,editDraft}:{conversation:Conversation;businessId:string;tick:number;role:'owner'|'admin'|'agent';userId:string;priorityReady:boolean;draft:string;requestId:string|undefined;editDraft:(text:string,reset?:boolean)=>void;refresh:()=>void;back:()=>void}){
  const [messages,setMessages]=useState<Message[]>([]),[queued,setQueued]=useState<Queued[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState(''),[newMessages,setNewMessages]=useState(false);
  const endRef=useRef<HTMLDivElement|null>(null),nearBottom=useRef(true),firstLoad=useRef(true),locked=useRef(false);
  const [loadingOlder,setLoadingOlder]=useState(false),[hasOlder,setHasOlder]=useState(true);
@@ -89,11 +99,11 @@ function Thread({conversation,businessId,tick,role,userId,refresh,back,draft,req
  const assignedElsewhere=!!conversation.assigned_to&&conversation.assigned_to!==userId;
  const canReply=!!userId&&!assignedElsewhere;
  async function send(e:React.FormEvent){e.preventDefault();const db=getSupabase();if(!db||locked.current||!canReply||!draft.trim()||!requestId)return;locked.current=true;setBusy(true);setError('');try{const {error}=await db.rpc('queue_support_reply',{p_conversation_id:conversation.id,p_text:draft.trim(),p_request_id:requestId});if(error)throw error;editDraft('',true);nearBottom.current=true;refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{locked.current=false;setBusy(false)}}
- async function pause(){const db=getSupabase();if(!db||locked.current||!userId||(assignedElsewhere&&role==='agent'))return;locked.current=true;setBusy(true);setError('');try{const {error}=await db.rpc('set_support_pause',{p_conversation_id:conversation.id,p_paused:assignedElsewhere?true:!conversation.ai_paused});if(error)throw error;refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{locked.current=false;setBusy(false)}}
+ async function pause(){const db=getSupabase();if(!db||locked.current||!userId||(assignedElsewhere&&role==='agent'))return;locked.current=true;setBusy(true);setError('');try{const {error}=await db.rpc('set_support_pause',{p_conversation_id:conversation.id,p_paused:priorityReady&&assignedElsewhere?true:!conversation.ai_paused});if(error)throw error;refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{locked.current=false;setBusy(false)}}
  return <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
   <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
    <div className="flex min-w-0 items-center gap-3"><button type="button" aria-label="Back to conversations" onClick={back} className="min-h-11 min-w-11 rounded-lg p-1.5 text-subtle hover:bg-canvas lg:hidden"><ChevronLeft size={20}/></button><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 font-bold text-ink">{conversation.display_name.trim().charAt(0).toUpperCase()||'?'}</span><div className="min-w-0"><h3 className="truncate text-sm font-bold text-ink sm:text-base">{conversation.display_name}</h3><p className="truncate text-xs text-subtle">{channelName(conversation.channel)} · {conversation.ai_paused?'AI paused — human mode':'AI not paused'}</p></div></div>
-   <button type="button" disabled={busy||!userId||(assignedElsewhere&&role==='agent')} onClick={pause} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-canvas px-3 py-2 text-xs font-semibold text-ink hover:opacity-80 disabled:opacity-50">{conversation.ai_paused&&!assignedElsewhere?<Play size={14}/>:<Pause size={14}/>} {assignedElsewhere?(role==='agent'?'Assigned to teammate':'Take over chat'):conversation.ai_paused?'Resume AI':'Take chat'}</button>
+   <button type="button" disabled={busy||!userId||(assignedElsewhere&&role==='agent')} onClick={pause} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-canvas px-3 py-2 text-xs font-semibold text-ink hover:opacity-80 disabled:opacity-50">{conversation.ai_paused&&!assignedElsewhere?<Play size={14}/>:<Pause size={14}/>} {priorityReady?(assignedElsewhere?(role==='agent'?'Assigned to teammate':'Take over chat'):conversation.ai_paused?'Resume AI':'Take chat'):(conversation.ai_paused?'Resume AI':'Pause AI')}</button>
   </header>
   {conversation.assigned_to&&<p className="px-4 py-1 text-xs text-subtle">{conversation.assigned_to===userId?'You are handling this conversation.':'A teammate is handling this conversation.'} {assignedElsewhere&&role==='agent'?'Ask an Owner or Admin to transfer it.':''}</p>}
   <div onScroll={e=>{const el=e.currentTarget;nearBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<100;if(nearBottom.current)setNewMessages(false)}} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-canvas/30 p-4 sm:p-6">
