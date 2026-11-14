@@ -19,6 +19,10 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
  const [priority,setPriority]=useState<'all'|'attention'|'mine'>('all');
  const [priorityReady,setPriorityReady]=useState(false);
  const [userId,setUserId]=useState('');
+ const [deliveryReviewIds,setDeliveryReviewIds]=useState<string[]>([]);
+ const [deliveryReviewCount,setDeliveryReviewCount]=useState(0);
+ const [deliveryReviewOnly,setDeliveryReviewOnly]=useState(false);
+ const [deliveryReviewError,setDeliveryReviewError]=useState(false);
  useEffect(()=>{let live=true;getSupabase()?.auth.getUser().then(({data})=>{if(live)setUserId(data.user?.id??'')});return()=>{live=false}},[businessId]);
  const [drafts,setDrafts]=useState<Record<string,ReplyDraft>>({});
  function editDraft(id:string,text:string,reset=false){setDrafts(old=>({...old,[id]:{text,requestId:!reset&&old[id]?.requestId?old[id].requestId:crypto.randomUUID()}}));}
@@ -44,12 +48,33 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
    }else{setPriorityReady(true);setError('');setConversations((data??[]) as Conversation[]);setSelected(prev=>prev===''?'':(data??[]).some(c=>c.id===prev)?prev:'')}
   });return()=>{live=false}
  },[businessId,tick]);
+ // Read-only, tenant-scoped delivery monitoring. Only Owner/Admin see the summary.
+ // Select only conversation IDs: never fetch provider credentials or message text.
+ useEffect(()=>{
+  let live=true;
+  if(role==='agent'){setDeliveryReviewIds([]);setDeliveryReviewCount(0);setDeliveryReviewOnly(false);setDeliveryReviewError(false);return;}
+  const db=getSupabase();
+  if(!db){setDeliveryReviewError(true);return;}
+  db.from('support_outbox').select('conversation_id',{count:'exact'})
+   .eq('business_id',businessId).eq('status','needs_review')
+   .order('created_at',{ascending:false}).limit(100)
+   .then(({data,count,error})=>{
+    if(!live)return;
+    if(error){setDeliveryReviewError(true);setDeliveryReviewIds([]);setDeliveryReviewCount(0);return;}
+    const ids=[...new Set((data??[]).map(x=>x.conversation_id).filter((x):x is string=>typeof x==='string'))];
+    setDeliveryReviewIds(ids);
+    setDeliveryReviewCount(count??0);
+    setDeliveryReviewError(false);
+    if((count??0)===0)setDeliveryReviewOnly(false);
+   });
+  return()=>{live=false};
+ },[businessId,role,tick]);
  const active=conversations.find(c=>c.id===selected);
  const now=Date.now();
  // Every unanswered inbound message belongs in Needs Reply, even during its first two minutes.
  const pendingReplies=conversations.filter(needsReply).length;
  const myChats=conversations.filter(c=>!!userId&&c.assigned_to===userId).length;
- const filtered=(priorityReady?sortByPriority(conversations.filter(c=>(channel==='all'||c.channel===channel)&&(mode==='all'||(mode==='human'?c.ai_paused:!c.ai_paused))&&(priority==='all'||(priority==='attention'?needsReply(c):!!userId&&c.assigned_to===userId))&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.trim().toLowerCase()))),now):conversations.filter(c=>(channel==='all'||c.channel===channel)&&(mode==='all'||(mode==='human'?c.ai_paused:!c.ai_paused))&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.trim().toLowerCase()))));
+ const filtered=(priorityReady?sortByPriority(conversations.filter(c=>(!deliveryReviewOnly||deliveryReviewIds.includes(c.id))&&(channel==='all'||c.channel===channel)&&(mode==='all'||(mode==='human'?c.ai_paused:!c.ai_paused))&&(priority==='all'||(priority==='attention'?needsReply(c):!!userId&&c.assigned_to===userId))&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.trim().toLowerCase()))),now):conversations.filter(c=>(!deliveryReviewOnly||deliveryReviewIds.includes(c.id))&&(channel==='all'||c.channel===channel)&&(mode==='all'||(mode==='human'?c.ai_paused:!c.ai_paused))&&(`${c.display_name} ${c.sender_id}`.toLowerCase().includes(search.trim().toLowerCase()))));
  return <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
   <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
    <div><h2 className="text-left text-base font-bold tracking-tight text-ink">Conversations</h2><p className="hidden md:block mt-1 text-left text-xs text-subtle">Latest 100 conversations · waiting is based on message times, not read receipts.</p></div>
@@ -58,6 +83,19 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
   {error&&<p role="alert" className="flex items-center gap-2 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-500"><AlertCircle size={16}/>{error}</p>}
   <div className="grid min-h-0 flex-1 overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:bg-panel lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
    <aside className={`min-w-0 rounded-xl border border-line bg-panel lg:rounded-none lg:border-0 lg:border-r ${active?'hidden lg:flex':'flex'} flex-col`}>
+    {role!=='agent'&&deliveryReviewCount>0&&
+     <div role="status" aria-live="polite" className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs">
+      <AlertCircle size={17} className="shrink-0 text-amber-600 dark:text-amber-400"/>
+      <div className="min-w-0 flex-1">
+       <p className="font-semibold text-ink">{deliveryReviewCount} {deliveryReviewCount===1?'reply needs':'replies need'} delivery check</p>
+       <p className="mt-0.5 text-subtle">Check the provider before sending again.</p>
+      </div>
+      <button type="button" aria-pressed={deliveryReviewOnly} onClick={()=>{
+       if(!deliveryReviewOnly){setSearch('');setChannel('all');setMode('all');setPriority('all')}
+       setDeliveryReviewOnly(v=>!v);
+      }} className="min-h-11 shrink-0 rounded-lg border border-amber-500/40 bg-panel px-3 font-semibold text-ink hover:opacity-80">{deliveryReviewOnly?'Show all':'Review'}</button>
+     </div>}
+    {role!=='agent'&&deliveryReviewError&&<p role="status" className="border-b border-line px-3 py-2 text-xs text-subtle">Delivery check unavailable. Use Refresh to retry.</p>}
     <div className="space-y-2 border-b border-line p-3">
      <div className="grid grid-cols-3 gap-1.5" aria-label="Inbox priority filters">
       {([['all','All',conversations.length],['attention','Needs Reply',pendingReplies],['mine','My Chats',myChats]] as const).map(([value,label,count])=>
@@ -75,7 +113,7 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
        {(channel!=='all'||mode!=='all')&&<button type="button" onClick={()=>{setChannel('all');setMode('all')}} className="min-h-10 text-xs font-semibold text-brand underline">Clear extra filters</button>}
       </div>
      </details>
-     {(search||priority!=='all')&&<button type="button" className="min-h-8 text-xs text-brand underline" onClick={()=>{setSearch('');setChannel('all');setMode('all');setPriority('all')}}>Clear filters</button>}
+     {(search||priority!=='all'||deliveryReviewOnly)&&<button type="button" className="min-h-8 text-xs text-brand underline" onClick={()=>{setSearch('');setChannel('all');setMode('all');setPriority('all');setDeliveryReviewOnly(false)}}>Clear filters</button>}
     </div>
     <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-2">
      {filtered.map(c=><button type="button" key={c.id} aria-current={selected===c.id?true:undefined} onClick={()=>setSelected(c.id)} className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition ${selected===c.id?'bg-brand/15 ring-1 ring-brand/30':'hover:bg-canvas'}`}>
@@ -89,9 +127,9 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
      </button>)}
      {!loading&&!filtered.length&&<div className="grid justify-items-center gap-2 px-5 py-10 text-center text-subtle">
        <Inbox size={26}/>
-       <p className="text-sm font-semibold text-ink">{conversations.length===0?'No conversations yet':search||channel!=='all'||mode!=='all'?'No matching conversations':priority==='mine'?'No chats assigned to you':priority==='attention'?'No replies waiting':'No matching conversations'}</p>
-       <p className="max-w-[240px] text-xs leading-relaxed">{conversations.length===0?'Messages from your connected channels will appear here.':search||channel!=='all'||mode!=='all'?'Try clearing your search or filters.':priority==='mine'?'Open a conversation and choose Take chat to see it here.':priority==='attention'?'New unanswered messages will appear here automatically.':'Try clearing your filters.'}</p>
-       {conversations.length>0&&(search||channel!=='all'||mode!=='all'||priority!=='all')&&<button type="button" className="min-h-11 rounded-lg border border-line px-4 text-xs font-semibold text-brand" onClick={()=>{setSearch('');setChannel('all');setMode('all');setPriority('all')}}>Show all conversations</button>}
+       <p className="text-sm font-semibold text-ink">{conversations.length===0?'No conversations yet':deliveryReviewOnly?'No recent delivery checks':search||channel!=='all'||mode!=='all'?'No matching conversations':priority==='mine'?'No chats assigned to you':priority==='attention'?'No replies waiting':'No matching conversations'}</p>
+       <p className="max-w-[240px] text-xs leading-relaxed">{conversations.length===0?'Messages from your connected channels will appear here.':deliveryReviewOnly?'Some delivery checks may be in older conversations outside this latest-100 list. Check the provider before replying again.':search||channel!=='all'||mode!=='all'?'Try clearing your search or filters.':priority==='mine'?'Open a conversation and choose Take chat to see it here.':priority==='attention'?'New unanswered messages will appear here automatically.':'Try clearing your filters.'}</p>
+       {conversations.length>0&&(search||channel!=='all'||mode!=='all'||priority!=='all'||deliveryReviewOnly)&&<button type="button" className="min-h-11 rounded-lg border border-line px-4 text-xs font-semibold text-brand" onClick={()=>{setSearch('');setChannel('all');setMode('all');setPriority('all');setDeliveryReviewOnly(false)}}>Show all conversations</button>}
       </div>}
      {loading&&!filtered.length&&<p className="p-5 text-center text-sm text-subtle">Loading conversations…</p>}
     </div>
