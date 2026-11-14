@@ -14,3 +14,10 @@ Small UI improvements following an authenticated production mobile test by the w
 - Code changed only in `components/unified-inbox.tsx` on branch `feature/inbox-mobile-qa-polish-20261114`.
 - Vercel Preview build, production release and cross-role browser verification are to be recorded separately after results are known.
 - No customer data, private messages, credentials or API keys in this note.
+
+## Release verification
+- Feature PR #16 merged into main as commit `3d6438726a68e202e6a28938df5b0782424f65d5`.
+- Vercel Preview build was READY for commit `d8c4d9f035004ba5a84aa050882c0b2bbcc7f175`.
+- Production deployment `dpl_29zcwwKxSfkdSRjdfttQ3toerjgT` reached READY and was assigned the verified live alias `support-flow-ai-phase3-b-full-resto.vercel.app`.
+- No SQL migration or permission change. Existing Take Chat / Resume AI tested successfully by owner in previous screenshots; this release changes only presentation and the Needs Reply UI predicate.
+- Remaining: live mobile browser check of wrapping badges, mixed filters, narrow viewports and authenticated Agent/Owner cross-workspace E2E. A build success alone does not prove these interactions.
