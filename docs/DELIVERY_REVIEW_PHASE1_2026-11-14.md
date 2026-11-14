@@ -19,3 +19,11 @@ The latest Production Supabase check found 3 Telegram outbox records in `needs_r
 
 ## Confidentiality
 No passwords, tokens, raw customer messages, contact details or business identifiers are stored in this note.
+
+## Verified release result
+- GitHub PR #19 merged into `main` at `1ba28488ff639d01f32448af8cb04d625fd862a4`.
+- GitHub Actions checks (TypeScript and unit tests) passed on the PR head.
+- Vercel Preview deployment at commit `e80f8fde9f1e44c4efba34baae4aece9ddeb2c4d` reached READY.
+- Production deployment `dpl_YWCABvXQ3JrqyNGJvgYKYqHjWro3` reached READY and received the verified live alias `support-flow-ai-phase3-b-full-resto.vercel.app`.
+- This release is UI/read-only only; no schema, membership, billing, credentials, queues or worker behavior changed.
+- Historical Telegram `needs_review` items have **not** been manually reconciled or retried; actual multi-workspace browser and provider-delivery E2E remain to be performed.
