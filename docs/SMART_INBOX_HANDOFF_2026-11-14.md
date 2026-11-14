@@ -41,3 +41,11 @@ Keep SupportFlow AI simple: no new dashboard page. Prioritize conversations wait
 - Latest Vercel Preview build for compact Inbox was READY at commit `ae79d73ef0`.
 - Full authenticated owner/admin/agent cross-workspace and live-channel E2E is still pending; do not claim it ran.
 - Migration is additive and earlier production application remains compatible with the new columns and RPC signatures until the new code is merged.
+
+## Verified production release — 2026-11-14
+- PR #15 merged into `main` at `108a54f0e796c199b444892bc5963f7fd722f046`.
+- Vercel Production deployment `dpl_BrEnYEdu3FxL7wSubwUhbYHaVF46` is **READY**, and the verified production alias is `support-flow-ai-phase3-b-full-resto.vercel.app`.
+- Production Supabase migration `smart_inbox_priority_handoff` applied successfully; the three new columns, message activity trigger, and membership-checked handoff functions were verified.
+- Existing conversation count remained 2 immediately after migration; both prior conversations had inbound and outbound activity backfilled. Unauthenticated RPC calls rejected.
+- Vercel builds passed. Automated UI unit tests, authenticated role-switching E2E, provider delivery, and actual mobile-device interaction have not been exercised in this release.
+- No credentials, customer message text, private contact details, or server tokens are stored in this note.
