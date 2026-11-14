@@ -53,7 +53,9 @@ export async function GET(req:NextRequest){
   issues:[...new Set(issues)],
   aiEnabled,deliveryEnabled,
   queue:{queued:count(jobs.data,'queued'),processing:count(jobs.data,'processing'),failed:count(jobs.data,'failed'),completed:count(jobs.data,'completed')},
-  deliveryQueue:{queued:count(outbox.data,'queued'),processing:count(outbox.data,'processing')},
+  // "claimed" is the real in-flight support_outbox status; never mask it as zero.
+  // needsReview is diagnostic only: delivery is ambiguous and must not be retried blindly.
+  deliveryQueue:{queued:count(outbox.data,'queued'),processing:count(outbox.data,'claimed'),needsReview:count(outbox.data,'needs_review')},
   note:'Read-only readiness report; not an end-to-end delivery test'
  },{headers:{'Cache-Control':'no-store'}});
 }
