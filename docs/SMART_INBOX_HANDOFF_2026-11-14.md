@@ -29,5 +29,6 @@ Keep SupportFlow AI simple: no new dashboard page. Prioritize conversations wait
 ## Known limitations
 - Only the latest 100 conversations are considered by UI priority; a later server-side paginated inbox may be warranted.
 - Assignment displays as “teammate” rather than exposing other people's emails; pending cross-workspace membership is still validated at action time.
+- Before migration is applied, the Inbox falls back to the existing conversation list and Pause AI / Resume AI. Priority badges and ownership are not shown until schema readiness is confirmed; existing conversations remain usable.
 - No automatic AI confidence-based escalation in this release; explicit human takeover is reliable and simple. Separate automatic escalation would require a trusted worker and testing.
 - Existing pending outbox sends are not cancelled on resume; provider workers must still honor existing pause rules.
