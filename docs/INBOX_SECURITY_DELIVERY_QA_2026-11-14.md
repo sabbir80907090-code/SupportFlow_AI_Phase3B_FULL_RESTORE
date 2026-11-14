@@ -19,7 +19,7 @@ Do **not** casually enable RLS or revoke access in production without confirming
 Other advisor notices include mutable `public.match_documents` search path, `pg_net` installed in public, and provider Auth security settings. Triage separately; no unauthorized legacy schema changes have been made.
 
 ## Deployment and remaining QA
-- Changed only `app/api/internal/supportflow-readiness/route.ts`; added regression tests and this report on `test/inbox-tenant-handoff-security-20261114`.
+- Changed only the read-only `app/api/internal/supportflow-readiness/route.ts` in app code; added SQL/Node regression tests, GitHub Actions typecheck/unit-test workflow, and this report on `test/inbox-tenant-handoff-security-20261114`.
 - No database migrations, tokens, credentials, customer personal data, subscription configuration or usage limits were modified.
-- Preview build and production status should be appended only after verification.
+- Preview build and automated GitHub Actions test results should be checked; production release requires separate verified status. The SQL role test was executed via a rollback-only transaction, not from GitHub Actions.
 - Remaining: real agent-to-agent browsers, concurrent claims, live channel delivery and platform-provider acknowledgements, unresolved `needs_review` item investigation using provider evidence, and safe remediation of legacy n8n tables.
