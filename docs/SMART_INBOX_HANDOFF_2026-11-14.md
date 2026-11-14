@@ -32,3 +32,12 @@ Keep SupportFlow AI simple: no new dashboard page. Prioritize conversations wait
 - Before migration is applied, the Inbox falls back to the existing conversation list and Pause AI / Resume AI. Priority badges and ownership are not shown until schema readiness is confirmed; existing conversations remain usable.
 - No automatic AI confidence-based escalation in this release; explicit human takeover is reliable and simple. Separate automatic escalation would require a trusted worker and testing.
 - Existing pending outbox sends are not cancelled on resume; provider workers must still honor existing pause rules.
+
+## Production release preparation — 2026-11-14
+- User explicitly approved production rollout and requested the next mobile UI update.
+- Compact mobile Inbox now has a three-choice All / Needs Reply / My Chats row; secondary Channel and AI-status filters are collapsed into Filters. Customer provider identifiers are hidden from the main list but remain available as tooltip/underlying data. No navigation page added.
+- The shared production Supabase migration `smart_inbox_priority_handoff` was applied successfully (version `20261114081450`). New assignment and inbound/outbound columns exist; message-activity trigger is enabled; security-definer RPCs retain their restricted signatures.
+- Read-only verification confirmed 2 pre-existing conversations and both inbound and outbound times backfilled. Unauthenticated RPC calls were rejected in a caught SQL smoke test. No outbound messages were sent.
+- Latest Vercel Preview build for compact Inbox was READY at commit `ae79d73ef0`.
+- Full authenticated owner/admin/agent cross-workspace and live-channel E2E is still pending; do not claim it ran.
+- Migration is additive and earlier production application remains compatible with the new columns and RPC signatures until the new code is merged.
