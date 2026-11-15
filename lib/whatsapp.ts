@@ -60,28 +60,3 @@ export function asksForWhatsAppHuman(text:string){
  return /\\b(human|real person|live agent|speak to (an? )?(agent|person)|talk to (an? )?(agent|person))\\b/i.test(text)||
  /(মানুষের সাথে|মানুষের সঙ্গে|এজেন্টের সাথে|এজেন্টের সঙ্গে|কাস্টমার কেয়ার|কাস্টমার কেয়ার)/.test(text);
 }
-export async function exchangeWhatsAppSignupCode(code:string,wabaId:string,phoneNumberId:string){
- const config=whatsappConfig();if(!config)throw Error('WhatsApp platform setup incomplete');
- if(!code||code.length>4096||!/^\\d{1,40}$/.test(wabaId)||!/^\\d{1,40}$/.test(phoneNumberId))throw Error('Invalid signup response');
- const response=await fetch('https://graph.facebook.com/'+whatsappGraphVersion+'/oauth/access_token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:config.appId,client_secret:config.appSecret,code}),signal:AbortSignal.timeout(12000),cache:'no-store'});
- const tokenResult=await response.json();if(!response.ok||typeof tokenResult.access_token!=='string')throw Error('Meta signup code exchange failed');
- const token=tokenResult.access_token as string;
- const result=await whatsappGraph<{data:{id:string;display_phone_number?:string;verified_name?:string}[]}>(wabaId+'/phone_numbers',token,'GET');
- const phone=result.data?.find(p=>p.id===phoneNumberId);if(!phone)throw Error('Selected number is not part of the authorized WhatsApp account');
- const id=crypto.randomUUID(),cipher=encryptChannelCredential(token,id);
- const database=db();
- const {error:insertError}=await database.from('support_channel_connections').insert({id,business_id:'',channel:'whatsapp',external_account_id:phoneNumberId,display_name:phone.verified_name||phone.display_phone_number||'WhatsApp Business',enabled:false});
- if(insertError)throw Error('This WhatsApp number is already connected or could not be reserved');
- const {error:credentialError}=await database.from('support_whatsapp_credentials').insert({connection_id:id,waba_id:wabaId,phone_number_id:phoneNumberId,access_token_ciphertext:cipher,verified_name:phone.verified_name||'',display_phone_number:phone.display_phone_number||''});
- if(credentialError){await database.from('support_channel_connections').delete().eq('id',id);throw Error('Unable to store WhatsApp credentials');}
- try{
-  const subscribed=await whatsappGraph<{success?:boolean}>(wabaId+'/subscribed_apps',token,'POST');
-  if(subscribed.success===false)throw Error('Webhook subscription failed');
-  const {error}=await database.from('support_channel_connections').update({enabled:true}).eq('id',id);
-  if(error)throw Error('Connection activation failed');
- }catch{
-  await database.from('support_channel_connections').update({enabled:false}).eq('id',id);
-  throw Error('WhatsApp account subscription failed; disconnect and retry after checking Meta setup');
- }
- return {connectionId:id,displayName:phone.verified_name||phone.display_phone_number||'WhatsApp Business',phoneNumber:phone.display_phone_number||''};
-}
