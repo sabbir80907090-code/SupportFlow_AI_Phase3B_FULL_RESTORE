@@ -18,7 +18,9 @@ export function validWhatsAppSignature(raw:string,signature:string,secret:string
 }
 export async function whatsappGraph<T>(path:string,token:string,method='GET',body?:Record<string,unknown>):Promise<T>{
  if(!/^[a-zA-Z0-9_/-]+$/.test(path))throw Error('Invalid Graph path');
- const url='https://graph.facebook.com/'+whatsappGraphVersion+'/'+path;
+ const config=whatsappConfig();if(!config)throw Error('WhatsApp platform setup incomplete');
+ const proof=createHmac('sha256',config.appSecret).update(token).digest('hex');
+ const url='https://graph.facebook.com/'+whatsappGraphVersion+'/'+path+'?appsecret_proof='+proof;
  const response=await fetch(url,{method,headers:{authorization:'Bearer '+token,...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(12000),cache:'no-store'});
  const result=await response.json();
  if(!response.ok||result.error)throw Error('WhatsApp provider request failed');
