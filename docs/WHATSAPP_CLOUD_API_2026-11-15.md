@@ -1,6 +1,6 @@
 # WhatsApp Cloud API integration
 
-Status: implementation branch; not production-enabled.
+Status: implementation branch; not production-enabled. Draft PR #21 is open against main.
 
 ## Scope
 - Meta WhatsApp Business Platform Cloud API, Embedded Signup (v4 config).
@@ -49,3 +49,13 @@ The additive migration creates service-role-only encrypted credential and 24-hou
 - Workspace A/B isolation and Owner/Admin/Agent permissions.
 - Preview typecheck/build and mobile checks.
 - Explicit approval before production migration, environment setup, or deployment.
+
+## Progress checkpoint — 2026-11-15
+- Branch: `feature/whatsapp-cloud-api-20261115`.
+- Draft PR: https://github.com/sabbir80907090-code/SupportFlow_AI_Phase3B_FULL_RESTORE/pull/21
+- GitHub Actions typecheck and full Node unit-test job passed on the latest checked commit.
+- Vercel Preview deployment is still building at checkpoint; no Preview-ready claim yet.
+- No Supabase schema changes have been applied. The production project currently has no development branch; creating one is quoted at USD 0.01344/hour and requires owner approval.
+- No Meta App ID/App Secret/Embedded Signup configuration values were added to Vercel. Existing production META_APP_ID and META_APP_SECRET are unset.
+- No real Meta WABA, webhook, or outbound customer message has been tested.
+- Production remains unchanged.
