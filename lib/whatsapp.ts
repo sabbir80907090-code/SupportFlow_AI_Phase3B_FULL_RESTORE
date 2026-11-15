@@ -1,6 +1,4 @@
 import {createHmac,timingSafeEqual} from 'node:crypto';
-import {db} from '@/lib/support-telegram-connect';
-import {decryptChannelCredential,encryptChannelCredential} from '@/lib/support-channel-credentials';
 
 export const whatsappGraphVersion=process.env.META_GRAPH_VERSION||'v25.0';
 export function whatsappConfig(){
