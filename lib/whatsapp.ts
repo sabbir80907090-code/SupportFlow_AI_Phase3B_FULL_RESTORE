@@ -1,4 +1,4 @@
-import {createHmac} from 'node:crypto';
+import {createHmac,timingSafeEqual} from 'node:crypto';
 import {db} from '@/lib/support-telegram-connect';
 import {decryptChannelCredential,encryptChannelCredential} from '@/lib/support-channel-credentials';
 
@@ -14,7 +14,7 @@ export function validWhatsAppSignature(raw:string,signature:string,secret:string
  if(!secret||!/^sha256=[a-f0-9]{64}$/.test(signature))return false;
  const expected='sha256='+createHmac('sha256',secret).update(raw).digest('hex');
  const a=Buffer.from(signature),b=Buffer.from(expected);
- return a.length===b.length&&require('node:crypto').timingSafeEqual(a,b);
+ return a.length===b.length&&timingSafeEqual(a,b);
 }
 export async function whatsappGraph<T>(path:string,token:string,method='GET',body?:Record<string,unknown>):Promise<T>{
  if(!/^[a-zA-Z0-9_/-]+$/.test(path))throw Error('Invalid Graph path');
