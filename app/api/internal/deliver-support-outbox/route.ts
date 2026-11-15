@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {timingSafeEqual} from 'node:crypto';
 import {deliverMessengerOutbox} from '@/lib/messenger-delivery';
+import {deliverWhatsAppOutbox} from '@/lib/whatsapp-delivery';
 import {adminDb,telegramSend} from '@/lib/telegram-server';
 
 export const runtime='nodejs';
@@ -71,5 +72,6 @@ export async function GET(req:NextRequest){
   }
  }
  const messenger=await deliverMessengerOutbox(10);
- return NextResponse.json({processed:processed+messenger.processed,needsReview:review+messenger.needsReview},{headers:{'Cache-Control':'no-store'}});
+ const whatsapp=await deliverWhatsAppOutbox(10);
+ return NextResponse.json({processed:processed+messenger.processed+whatsapp.processed,needsReview:review+messenger.needsReview+whatsapp.needsReview},{headers:{'Cache-Control':'no-store'}});
 }
