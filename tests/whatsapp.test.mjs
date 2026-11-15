@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHmac} from 'node:crypto';
 import ts from 'typescript';
-const source=readFileSync(new URL('../lib/whatsapp.ts',import.meta.url),'utf8');
+const source=readFileSync(new URL('../lib/whatsapp.ts',import.meta.url),'utf8').replace(/^import .* from '@\\/.*';\\n/gm,'');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText;
 const {validWhatsAppSignature,whatsappEvents,whatsappRecipient,withinWhatsAppWindow,asksForWhatsAppHuman}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 const secret='whatsapp-test-secret';
