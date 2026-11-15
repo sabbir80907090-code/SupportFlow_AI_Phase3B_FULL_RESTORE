@@ -12,19 +12,20 @@ export function WhatsAppChannel({businessId}:{businessId:string}){
   const result=await response.json();if(!response.ok)throw Error(result.error||'WhatsApp request failed');return result;
  }
  async function refresh(){setLoading(true);try{const result=await request('GET');setConfigured(result.configured);setConnection(result.connection??null);}catch(e){setError(e instanceof Error?e.message:'Unable to load WhatsApp');}finally{setLoading(false);}}
- useEffect(()=>{void refresh();},[businessId]);
  useEffect(()=>{
   const appId=process.env.NEXT_PUBLIC_META_APP_ID;
-  if(!appId)return;
-  const init=()=>{if(!window.FB)return;window.FB.init({appId,autoLogAppEvents:true,xfbml:false,version:process.env.NEXT_PUBLIC_META_GRAPH_VERSION||'v25.0'});};
-  if(window.FB)init();else{window.fbAsyncInit=init;const script=document.createElement('script');script.async=true;script.defer=true;script.crossOrigin='anonymous';script.src='https://connect.facebook.net/en_US/sdk.js';document.head.appendChild(script);}
-  return()=>{
-   const handler=(event:MessageEvent)=>{if(event.origin!=='https://www.facebook.com')return;let data:any;try{data=typeof event.data==='string'?JSON.parse(event.data):event.data;}catch{return;}if(data?.type!=='WA_EMBEDDED_SIGNUP')return;
-    const value=data.data??{};if(data.event==='FINISH'||value.current_step==='FINISH'){signup.current.wabaId=String(value.waba_id??'');signup.current.phoneNumberId=String(value.phone_number_id??'');signup.current.finished=true;void completeIfReady();}
-    if(data.event==='CANCEL'||data.event==='ERROR'){setBusy(false);setError(data.event==='CANCEL'?'WhatsApp setup was cancelled.':'Meta could not complete WhatsApp setup.');}
-   };
-   window.addEventListener('message',handler);return()=>window.removeEventListener('message',handler);
+  if(appId){
+   const init=()=>{if(!window.FB)return;window.FB.init({appId,autoLogAppEvents:true,xfbml:false,version:process.env.NEXT_PUBLIC_META_GRAPH_VERSION||'v25.0'});};
+   if(window.FB)init();else{window.fbAsyncInit=init;const script=document.createElement('script');script.async=true;script.defer=true;script.crossOrigin='anonymous';script.src='https://connect.facebook.net/en_US/sdk.js';document.head.appendChild(script);}
+  }
+  const handler=(event:MessageEvent)=>{
+   if(event.origin!=='https://www.facebook.com')return;let data:any;try{data=typeof event.data==='string'?JSON.parse(event.data):event.data;}catch{return;}
+   if(data?.type!=='WA_EMBEDDED_SIGNUP')return;const value=data.data??{};
+   if(data.event==='FINISH'||value.current_step==='FINISH'){signup.current.wabaId=String(value.waba_id??'');signup.current.phoneNumberId=String(value.phone_number_id??'');signup.current.finished=true;void completeIfReady();}
+   if(data.event==='CANCEL'||data.event==='ERROR'){setBusy(false);setError(data.event==='CANCEL'?'WhatsApp setup was cancelled.':'Meta could not complete WhatsApp setup.');}
   };
+  window.addEventListener('message',handler);
+  return()=>window.removeEventListener('message',handler);
  },[]);
  async function completeIfReady(){
   const s=signup.current;if(!s.code||!s.finished||!s.wabaId||!s.phoneNumberId)return;
