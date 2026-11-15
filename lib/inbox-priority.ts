@@ -24,8 +24,23 @@ export function needsAttention(c: PriorityConversation, now: number = Date.now()
   return needsReply(c) && (c.ai_paused || waitMinutes(c, now) >= 2);
 }
 
-// Escalated human conversations first, then overdue replies, then fresh incoming,
-// then active agent conversations, with recency preserved within each tier.
+export type InboxQueue = 'all' | 'attention' | 'mine' | 'unassigned';
+
+export function matchesInboxQueue(c: PriorityConversation, queue: InboxQueue, userId: string): boolean {
+  if (queue === 'attention') return needsReply(c);
+  if (queue === 'mine') return !!userId && c.assigned_to === userId;
+  if (queue === 'unassigned') return !c.assigned_to && needsReply(c);
+  return true;
+}
+
+function timestamp(value: string | null): number {
+  const parsed = value ? Date.parse(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// Escalated human conversations first, then overdue replies, then fresh incoming.
+// Within a waiting tier, oldest latest-inbound comes first; answered chats use recency.
+// This measures the latest unanswered message, not the first in an unanswered burst.
 export function priorityTier(c: PriorityConversation, now: number = Date.now()): number {
   if (needsReply(c) && c.ai_paused) return 0;
   if (needsReply(c) && waitMinutes(c, now) >= 2) return 1;
@@ -35,9 +50,13 @@ export function priorityTier(c: PriorityConversation, now: number = Date.now()):
 }
 
 export function sortByPriority<T extends PriorityConversation>(items: readonly T[], now: number = Date.now()): T[] {
-  return [...items].sort((a, b) =>
-    priorityTier(a, now) - priorityTier(b, now) ||
-    Date.parse(b.last_message_at || '') - Date.parse(a.last_message_at || '') ||
-    a.id.localeCompare(b.id)
-  );
+  return [...items].sort((a, b) => {
+    const tierDifference = priorityTier(a, now) - priorityTier(b, now);
+    if (tierDifference) return tierDifference;
+    if (needsReply(a) && needsReply(b)) {
+      const waitingDifference = timestamp(a.last_inbound_at) - timestamp(b.last_inbound_at);
+      if (waitingDifference) return waitingDifference;
+    }
+    return timestamp(b.last_message_at) - timestamp(a.last_message_at) || a.id.localeCompare(b.id);
+  });
 }
