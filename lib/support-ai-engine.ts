@@ -87,7 +87,9 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
        try{
          const {error:usageError}=await db.from('support_ai_usage').insert({
            business_id:job.business_id,job_id:job.id,api_key_id:stored.id,
-           provider:stored.provider,model:stored.model,
+           provider:stored.provider,
+           // Prefer the exact provider-reported model over mutable configured aliases.
+           model:(()=>{const resolved=String(payload.modelVersion??payload.model??'').replace(/^models\//,'');return /^[a-zA-Z0-9._:-]{2,120}$/.test(resolved)?resolved:stored.model})(),
            input_tokens:usage.inputTokens,output_tokens:usage.outputTokens,total_tokens:usage.totalTokens
          });
          if(usageError)console.error('AI usage logging unavailable',usageError.code);
