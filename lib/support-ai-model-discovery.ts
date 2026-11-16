@@ -10,7 +10,13 @@ const preferred:Record<AiProvider,string[]>={
 export function compatibleModel(provider:AiProvider,item:ModelItem):string|null{
  const id=String(provider==='gemini'?item.name??'':item.id??'').replace(/^models\//,'');
  if(!validId(id))return null;
- if(provider==='gemini')return Array.isArray(item.supportedGenerationMethods)&&item.supportedGenerationMethods.includes('generateContent')?id:null;
+ if(provider==='gemini'){
+  if(!Array.isArray(item.supportedGenerationMethods)||!item.supportedGenerationMethods.includes('generateContent'))return null;
+  // The support worker only uses text chat generation, not images, video, audio,
+  // computer-use, research agents or experimental preview tools.
+  if(/(image|imagen|veo|video|audio|tts|embedding|aqa|computer-use|deep-research|antigravity|robotics|spatial|native-audio|live)/i.test(id))return null;
+  return /^(gemini-(?:[0-9]+(?:\.[0-9]+)?-|flash|pro)|learnlm-)/i.test(id)?id:null;
+ }
  if(provider==='anthropic')return id.startsWith('claude-')?id:null;
  // The OpenAI models list does not expose endpoint capabilities. Keep non-chat
  // families out of the reply-model selector; actual generation still needs testing.
