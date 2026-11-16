@@ -2,6 +2,7 @@ import {orderOutputInstruction,parseOrderAnswer,isOrderControl,orderResponseSche
 import {catalogFacts,selectCatalog,validCatalogImagePath,providerHistory,type CatalogImage} from '@/lib/support-product-context';
 import {adminDb} from '@/lib/telegram-server';
 import {decryptChannelCredential} from '@/lib/support-channel-credentials';
+import {providerTokenUsage} from '@/lib/support-ai-usage';
 
 export const runtime='nodejs';
 type Outcome='queued'|'skipped'|'failed'|'not_claimed';
@@ -80,6 +81,17 @@ export async function processSupportAiJob(jobId:string):Promise<Outcome>{
        }else{continue}
        if(!response.ok){lastError='provider_http_'+response.status;if(withImages&&[400,413,415,422].includes(response.status))continue;break}
        const payload=await response.json() as any;
+       // Every successful provider call can be billable, even if its JSON reply is invalid.
+       // Usage logging is best-effort and must never prevent an otherwise valid reply.
+       const usage=providerTokenUsage(stored.provider,payload);
+       try{
+         const {error:usageError}=await db.from('support_ai_usage').insert({
+           business_id:job.business_id,job_id:job.id,api_key_id:stored.id,
+           provider:stored.provider,model:stored.model,
+           input_tokens:usage.inputTokens,output_tokens:usage.outputTokens,total_tokens:usage.totalTokens
+         });
+         if(usageError)console.error('AI usage logging unavailable',usageError.code);
+       }catch{console.error('AI usage logging unavailable');}
        answer=String((stored.provider==='gemini'?payload.candidates?.[0]?.content?.parts?.map((p:{text?:string})=>p.text??'').join(''):stored.provider==='openai'?payload.choices?.[0]?.message?.content:payload.content?.filter((p:{type:string})=>p.type==='text').map((p:{text?:string})=>p.text??'').join(''))??'').trim();
        if(answer){try{parseOrderAnswer(answer,products??[],inbound.map(m=>String(m.text)));break}catch{answer='';lastError='invalid_order_response';continue}}
        lastError='empty_answer';
