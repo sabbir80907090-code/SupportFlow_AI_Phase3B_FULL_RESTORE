@@ -33,3 +33,10 @@ Owner/Admin should see current money, spent money and tokens for each business-o
 5. Test actual provider token responses and malformed JSON/retries without exposing secrets.
 6. After approvals, deploy database before application; monitor usage ledger and worker errors.
 Status: feature branch only; no production deployment, DB migration or live E2E verified.
+
+## Execution update — 2026-11-16
+- Production currently has 27 AI jobs, 24 completed; no historical provider token counts are stored, so backfill cannot be exact.
+- Staging migration tested; a transaction-scoped 1500-token sample with configured rates produced $0.002 exactly; rolled back all test data.
+- Production **additive migration applied** after staging verification: support_ai_usage, support_ai_usage_rates, support_ai_usage_budgets, aggregation RPC. Existing business/order/message/key tables untouched. Verified all three tables exist; authenticated cannot execute aggregation RPC, service_role can; initial ledger rows = 0.
+- CI on earlier branch commit failed 2 existing engine mocks because the new logging path calls insert and usage helper; updated test mocks in feature branch. Await rerun before merging.
+- Production web application has NOT been deployed or merged. Real token collection starts only after updated worker is released and runs.
