@@ -16,9 +16,11 @@ export function selectCatalog(products:CatalogProduct[],query:string,previousQue
  if(!ranked.some(x=>x.score>0)&&terms.length===0)ranked=products.map(p=>({p,score:score(p,previous)}));
  ranked.sort((a,b)=>b.score-a.score);
  const matched=ranked.filter(x=>x.score>0).map(x=>x.p);
- const selected=(matched.length?matched:products).slice(0,12);
+ // An unrelated question must not include a dozen arbitrary product records.
+ // Keep a tiny fallback for vague product questions without a matching SKU/name.
+ const selected=(matched.length?matched:products.slice(0,3)).slice(0,8);
  const visual=/photo|image|colou?r|look|design|ছবি|রং|রঙ|দেখতে|ডিজাইন/i.test(query);
- return {selected,imageProducts:(matched.length?matched:visual&&products.length<=3?products:[]).filter(p=>p.image_path).slice(0,3)};
+ return {selected,imageProducts:(visual?(matched.length?matched:products.length<=3?products:[]):[]).filter(p=>p.image_path).slice(0,2)};
 }
 export function catalogFacts(products:CatalogProduct[],total:number){
  return JSON.stringify({catalog_is_partial:total>products.length,active_product_count:total,products:products.map(p=>({id:p.id,name:p.name.slice(0,160),sku:p.sku,category:p.category,price:p.price,currency:p.currency,stock_quantity:p.stock_quantity,description:p.description?.slice(0,1000)??null}))});
