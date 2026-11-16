@@ -40,3 +40,12 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Production **additive migration applied** after staging verification: support_ai_usage, support_ai_usage_rates, support_ai_usage_budgets, aggregation RPC. Existing business/order/message/key tables untouched. Verified all three tables exist; authenticated cannot execute aggregation RPC, service_role can; initial ledger rows = 0.
 - CI on earlier branch commit failed 2 existing engine mocks because the new logging path calls insert and usage helper; updated test mocks in feature branch. Await rerun before merging.
 - Production web application has NOT been deployed or merged. Real token collection starts only after updated worker is released and runs.
+
+## Automatic pricing and simplified UI update — 2026-11-16
+- User approved removing manual model pricing from normal Analytics and relocating to Settings → collapsed Advanced AI Pricing.
+- Added database/bartacare_auto_pricing_catalog.sql with reviewed standard paid-tier **exact model ID** defaults, source URLs and reviewed dates. Workspace manual rates take precedence. Unknown models stay unpriced; no guessing from model name prefixes or aliases.
+- Main Analytics shows usage, budget, model breakdown; advanced form is only accessible to Owner/Admin from Settings.
+- Provider-reported resolved model is preferred when available for usage ledger records; no extra provider calls.
+- Applied automatic pricing migration to **isolated staging only**. Verified eight default rates, authenticated role cannot read rate table, service_role can. Rollback-only test with 1M input + 1M output for gpt-4.1-mini computed $2.00 correctly.
+- This is not a live price feed. Pricing can change, cached tokens, context length tiers, discounts, taxes, free tier and other billable modalities can differ; estimates remain approximate.
+- Latest CI run is pending; production default pricing migration and production app deployment NOT performed for this update.
