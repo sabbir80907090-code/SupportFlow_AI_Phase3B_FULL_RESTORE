@@ -16,9 +16,6 @@ grant select on public.support_ai_default_rates to service_role;
 insert into public.support_ai_default_rates(provider,model,input_usd_per_million,output_usd_per_million,source_url,reviewed_on) values
  ('gemini','gemini-2.5-flash-lite',0.10,0.40,'https://ai.google.dev/gemini-api/docs/pricing','2026-11-16'),
  ('gemini','gemini-2.5-flash',0.30,2.50,'https://ai.google.dev/gemini-api/docs/pricing','2026-11-16'),
- ('gemini','gemini-3.1-flash-lite',0.25,1.50,'https://ai.google.dev/gemini-api/docs/pricing','2026-11-16'),
- ('gemini','gemini-3.5-flash-lite',0.30,2.50,'https://ai.google.dev/gemini-api/docs/pricing','2026-11-16'),
- ('gemini','gemini-3.5-flash',1.50,9.00,'https://ai.google.dev/gemini-api/docs/pricing','2026-11-16'),
  ('openai','gpt-4.1-mini',0.40,1.60,'https://developers.openai.com/api/docs/models/gpt-4.1-mini','2026-11-16'),
  ('openai','gpt-4.1',2.00,8.00,'https://developers.openai.com/api/docs/models/gpt-4.1','2026-11-16'),
  ('openai','gpt-4o-mini',0.15,0.60,'https://developers.openai.com/api/docs/models/gpt-4o-mini','2026-11-16'),
