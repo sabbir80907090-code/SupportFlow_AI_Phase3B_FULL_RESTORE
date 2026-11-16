@@ -22,3 +22,10 @@ User requested the model picker shown in the BartaCare dashboard to automaticall
 - Typecheck, unit tests, build and live provider verification are pending CI/preview checks.
 - Feature branch only; no production deployment or database migration.
 - Before release: check CI, owner/admin/agent permissions, multiple-workspace isolation, provider failures, custom model fallback, and mobile dropdown usability.
+
+## Mobile picker refinement — 2026-11-16
+- Screenshot showed Android native select expanding into a full-screen unsearchable list, including unrelated Gemini image/research/experimental models.
+- Replaced native select with mobile bottom-sheet / desktop dialog, search, six suggested choices, Show all, selected-state indicator, clear full model IDs and custom model entry.
+- Server-side Gemini discovery now excludes image, audio, research, computer-use and antigravity model families from text support replies.
+- No API key, workspace, database or production configuration changes. Existing saved model stays selected until explicit Save Model.
+- Pending: CI typecheck, browser/mobile and live provider validation. Preview feature branch only.
