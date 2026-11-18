@@ -93,3 +93,9 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Verified GitHub Actions run 44231354159 at commit be165545: TypeScript check PASS and unit tests PASS.
 - Verified Vercel Preview deployment dpl_FAkND6g2j525qiQNKShMHCCStGNG at commit be165545: READY (bartacare-z9hvn94dj-nax10.vercel.app). Historical ERROR deployments remain immutable history, not ongoing failures.
 - Production was not changed; PR #25 remains open. Browser login, channel connection E2E, and mobile visual QA still pending.
+
+## Model suggestions while adding an API key — 2026-11-18
+- User requested model suggestions immediately after pasting a new API key, before saving the key.
+- Added owner-authorized POST /api/ai/keys/suggest-models, accepting unsaved key only in request body; fetches provider's compatible text-generation models server-side without storing the key, logging it, or exposing it in a URL.
+- Reused mobile-friendly model picker and filtered discovery implementation from earlier PR #23. Form now supports Find models, selected model on initial key save, refresh, and manual model ID fallback. Existing per-workspace key encryption and 10-key limit remain.
+- A successful model-list response verifies provider model-list access, not actual reply-generation access or provider billing balance. No database migration or production release. CI and mobile visual/E2E tests pending.
