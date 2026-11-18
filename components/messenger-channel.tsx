@@ -50,6 +50,6 @@ export function MessengerChannel({businessId}:{businessId:string}){
   </div>}
   <p className="mt-5 text-xs leading-5 text-subtle">Text conversations are supported. Standard replies must be sent within 24 hours of the customer's latest message.</p>
   {confirm&&<div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"><div role="alertdialog" aria-modal="true" aria-labelledby="disconnect-messenger" className="w-full max-w-md rounded-2xl border border-line bg-panel p-6"><h3 id="disconnect-messenger" className="text-xl font-bold">Disconnect Facebook Page?</h3><p className="mt-3 text-sm text-subtle">New messages and replies for {connection?.display_name} will stop. Existing inbox history will remain.</p><div className="mt-6 flex justify-end gap-3"><button disabled={busy} onClick={()=>setConfirm(false)} className="rounded-xl border border-line px-4 py-2">Cancel</button><button disabled={busy} onClick={()=>void act('disconnect')} className="rounded-xl bg-rose-600 px-4 py-2 text-white">{busy?'Disconnecting…':'Disconnect'}</button></div></div></div>}
- </section>;
+ </div></details>;
 }
 
