@@ -20,6 +20,7 @@ async function manage(req:NextRequest,method:'POST'|'DELETE'){
  if((method==='POST')!==(action==='reconnect'))return reply({error:'Unsupported action for method'},405);
  if(action==='delete'&&(typeof password!=='string'||!password||password.length>1024))
   return reply({error:'Owner password is required for deletion'},400);
+ if(process.env.BARTACARE_TEAM_MANAGEMENT_ENABLED!=='true')return reply({error:'Team management upgrade is pending database activation'},503);
  try{
   const database=db();
   const {data:{user},error:userError}=await database.auth.getUser(bearer.slice(7));
