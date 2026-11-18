@@ -61,3 +61,9 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - User explicitly requested all remaining AI-related settings appear under the existing AI setup screen (shown with AI Auto Reply, Custom AI System Prompt, and API Key Management).
 - Moved AI monthly budget and Advanced AI Pricing from generic Settings to the existing AI setup tab. Both remain Owner/Admin-only; provider key management remains Owner-only. Analytics remains read-only.
 - No API/database changes. GitHub CI and Vercel Preview still require verification for this commit; production unchanged.
+
+## AI setup read-only summary cards — 2026-11-18
+- User requested the same four top-level Analytics cards at the very top of AI setup, above Auto Reply, System Prompt and API keys.
+- Added a compact two-column mobile / four-column desktop read-only summary with provider balance availability, estimated spend, workspace budget remaining, and recorded token usage. It reuses the existing owner/admin-authorized business-scoped usage API; no duplicate ledger, billing action or migration.
+- Existing full Analytics remains read-only and existing AI setup controls unchanged. Real provider balance remains unavailable where unsupported; budget remaining is explicitly a workspace target.
+- Pending CI and Preview visual check; no production deployment performed for this update.
