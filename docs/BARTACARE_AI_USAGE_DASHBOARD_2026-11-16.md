@@ -110,3 +110,8 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Added reusable components/form-dialog.tsx with mobile full-screen overlay, desktop centered modal, scrollable form, keyboard Escape, focus management and background scroll lock.
 - Migrated Add API Key form only as the first rollout. Preserved provider detection, model suggestions, encryption and per-business owner permission, existing submit API, and connected-key management.
 - Other forms remain unchanged pending separate review to avoid regressions. This is a feature branch only, no database migration or production release. CI, nested model-picker, mobile keyboard, login and end-to-end tests pending.
+
+## Mobile bottom-sheet refinement — 2026-11-18
+- User confirmed mobile should show a bottom sheet instead of full-screen form, while desktop remains centered popup.
+- Replaced mobile 100dvh dialog with 88dvh rounded-top bottom sheet, visible dimmed dashboard backdrop, drag-handle visual, safe-area padding, internal scrolling and unchanged sticky Save/Cancel form actions.
+- Stabilized dialog effect against callback re-renders to avoid keyboard focus jumping during form input. No API, permissions, database or production changes. CI and live mobile visual/keyboard QA pending.
