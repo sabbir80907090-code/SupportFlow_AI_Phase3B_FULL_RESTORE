@@ -73,3 +73,9 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Auto Reply now a compact status/toggle card; optional Business Instructions editor is collapsed by default; connected AI provider key and its model are combined into one expandable card per key. Add key, enable/disable, priority, model save and delete actions preserved.
 - Budget and advanced pricing remain collapsed under AI setup; Analytics remains read-only. Mobile-friendly controls have at least 44px touch targets.
 - No customer data, provider secrets, database migrations or production deployments modified. CI and Preview visual QA pending.
+
+## Channels page usability refresh — 2026-11-18
+- User screenshot showed long Telegram and Facebook Messenger settings cards; requested a simpler Channels page.
+- Added a short three-step onboarding explanation, collapsible status-first Telegram/Messenger/Website Chat cards, and compact Coming later cards for Instagram/WhatsApp. Kept existing business-scoped API routes, token input, Facebook OAuth, website embed, and disconnect confirmation logic unchanged.
+- Maintained Owner-only access to Channels as enforced by existing app routing and server authorization. Responsive card summaries, visible connection status, 44px touch targets for key actions.
+- CI and browser/mobile visual QA pending. Preview branch only, production unchanged.
