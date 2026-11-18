@@ -99,3 +99,8 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Added owner-authorized POST /api/ai/keys/suggest-models, accepting unsaved key only in request body; fetches provider's compatible text-generation models server-side without storing the key, logging it, or exposing it in a URL.
 - Reused mobile-friendly model picker and filtered discovery implementation from earlier PR #23. Form now supports Find models, selected model on initial key save, refresh, and manual model ID fallback. Existing per-workspace key encryption and 10-key limit remain.
 - A successful model-list response verifies provider model-list access, not actual reply-generation access or provider billing balance. No database migration or production release. CI and mobile visual/E2E tests pending.
+
+## Main-branch integration review — 2026-11-18
+- User authorized merging successful updates into main. Reviewed PR #23 and #25; both CI green at prior heads, and the production database already has usage/budget/pricing tables and migration history.
+- Consolidated PR #23's saved-key live model discovery into PR #25 without replacing the simplified key manager; added owner-authorized /api/ai/keys/models route. Kept ephemeral unsaved-key model suggestions and all previous UI features.
+- Release gate: latest integrated CI and Vercel Preview must pass before merging PR #25; do not merge overlapping PR #23 separately. Production runtime smoke checks still required after main deploy.
