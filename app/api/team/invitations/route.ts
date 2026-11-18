@@ -15,25 +15,25 @@ async function owner(req:NextRequest,businessId:string){
 }
 export async function GET(req:NextRequest){
  const businessId=new URL(req.url).searchParams.get('businessId')??'';
- if(!/^[a-f0-9-]{36}$/i.test(businessId))return respond({error:'Invalid workspace'},400);
- const bearer=req.headers.get('authorization')??'';
- if(!bearer.startsWith('Bearer '))return respond({error:'Sign in required'},401);
- const database=db();
- const {data:{user},error:authError}=await database.auth.getUser(bearer.slice(7));
- if(authError||!user)return respond({error:'Sign in required'},401);
- const {data:member,error:memberError}=await database.from('business_members').select('role')
-  .eq('business_id',businessId).eq('user_id',user.id).maybeSingle();
- if(memberError)return respond({error:'Team service unavailable'},503);
- if(member?.role!=='owner'&&member?.role!=='admin')return respond({error:'Owner or Admin access required'},403);
- const {data:members,error:membersError}=await database.from('business_members').select('user_id,role')
-  .eq('business_id',businessId);
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(businessId))return respond({error:'Invalid workspace'},400);
+ const auth=await owner(req,businessId);
+ if(!auth)return respond({error:'Workspace owner access required'},403);
+ const {data:members,error:membersError}=await auth.database.from('business_members').select('user_id,role').eq('business_id',businessId);
  if(membersError)return respond({error:'Team list unavailable'},503);
- if(member.role==='admin')return respond({invitations:[],members:members??[]});
- const {data,error}=await database.from('business_team_invitations')
+ const {data:invitations,error:invitesError}=await auth.database.from('business_team_invitations')
   .select('id,email,role,status,created_at,expires_at').eq('business_id',businessId)
   .order('created_at',{ascending:false}).limit(50);
- if(error)return respond({error:'Team invitations unavailable'},503);
- return respond({invitations:data??[],members:members??[]});
+ if(invitesError)return respond({error:'Team invitations unavailable'},503);
+ // Migration-gated: preserve existing team list until database changes are approved.
+ let disconnectedMembers:unknown[]=[];
+ let managementReady=false;
+ if(process.env.BARTACARE_TEAM_MANAGEMENT_ENABLED==='true'){
+  const {data,error}=await auth.database.from('business_member_disconnections')
+   .select('user_id,role,disconnected_at').eq('business_id',businessId)
+   .order('disconnected_at',{ascending:false});
+  if(!error){disconnectedMembers=data??[];managementReady=true}
+ }
+ return respond({members:members??[],invitations:invitations??[],disconnectedMembers,managementReady});
 }
 export async function POST(req:NextRequest){
  let body:unknown;try{body=await req.json()}catch{return respond({error:'Invalid request'},400)}
