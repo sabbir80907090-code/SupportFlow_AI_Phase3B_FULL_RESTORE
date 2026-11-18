@@ -9,7 +9,7 @@ type Rate={provider:string;model:string;input_usd_per_million:number;output_usd_
 type Data={month:string;summary:{totals:Totals;models:Model[];daily:Day[]};rates:Rate[];budget:{monthly_budget_usd:number|null;monthly_token_budget:number|null}|null;providerBalance:null;providerBalanceStatus:string};
 const money=(n:number)=>'$'+n.toFixed(n<0.01&&n>0?5:2);
 const count=(n:number)=>Number(n||0).toLocaleString('en-US');
-export function AiUsageDashboard({businessId,view='overview'}:{businessId:string;view?:'overview'|'budget'|'pricing'}){
+export function AiUsageDashboard({businessId,view='overview'}:{businessId:string;view?:'overview'|'summary'|'budget'|'pricing'}){
  const [data,setData]=useState<Data|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [budget,setBudget]=useState(''),[tokenBudget,setTokenBudget]=useState('');
  const [provider,setProvider]=useState('gemini'),[model,setModel]=useState(''),[inputRate,setInputRate]=useState(''),[outputRate,setOutputRate]=useState('');
@@ -43,10 +43,20 @@ export function AiUsageDashboard({businessId,view='overview'}:{businessId:string
  const field='w-full rounded-xl border border-line bg-canvas p-3 text-sm';
  const stat=(label:string,value:string,detail:string,Icon:typeof Activity)=><div className={box}><div className="flex items-center justify-between text-sm text-subtle"><span>{label}</span><Icon size={18}/></div><p className="mt-3 break-all text-2xl font-extrabold text-ink">{value}</p><p className="mt-2 text-xs text-subtle">{detail}</p></div>;
  return <div className="space-y-5">
+  {view==='summary'&&<div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-bold text-ink">AI Account Overview</h3><p className="mt-1 text-xs text-subtle">Current UTC month · This business only · USD estimates</p></div><button type="button" onClick={()=>void load()} disabled={loading||saving} className="flex min-h-11 items-center gap-2 rounded-xl border border-line px-4 text-sm"><RefreshCw size={16}/> Refresh</button></div>}
   {view==='overview'&&<div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-xl font-bold">AI Usage & Cost</h3><p className="mt-1 text-sm text-subtle">Only this business workspace · Current UTC month · USD estimates</p></div><button type="button" onClick={()=>void load()} disabled={loading||saving} className="flex min-h-11 items-center gap-2 rounded-xl border border-line px-4 text-sm"><RefreshCw size={16}/> Refresh</button></div>}
   {error&&<p role="alert" className="rounded-xl border border-rose-500/40 p-3 text-sm text-rose-500">{error}</p>}
   {notice&&<p role="status" className="text-sm text-emerald-600">{notice}</p>}
   {loading&&!data?<p className="text-sm text-subtle">Loading usage data…</p>:data&&<>
+   {view==='summary'&&<div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    {stat('Provider balance','Unavailable','Provider wallet balance cannot be verified with this API key.',Wallet)}
+    {stat('Estimated spend',priced?money(estimated):money(estimated)+'+',
+      priced?'Estimated from recorded AI calls.':'Partial estimate: some calls have no pricing or usage.',BarChart3)}
+    {stat('Budget remaining',remaining===null?'Not set':priced?money(remaining):'Unknown',
+      'Remaining workspace target, not provider balance.',Coins)}
+    {stat('Tokens used',count(Number(totals?.total_tokens??0)),
+      count(Number(totals?.calls??0))+' recorded calls · '+count(Number(totals?.missing_token_calls??0))+' missing usage',Activity)}
+   </div>}
    {view==='overview'&&<>
    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
     {stat('Provider account balance','Unavailable','Your provider does not expose a common balance API.',Wallet)}
