@@ -56,3 +56,8 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Moved monthly budget form to Settings → AI monthly budget; Advanced AI Pricing remains under Settings, both Owner/Admin only.
 - Existing business-specific API authorization and budget saving logic preserved. No database migration needed for this UI change.
 - CI and Vercel Preview validation pending; not merged or released to production as part of this update.
+
+## AI setup consolidation — 2026-11-18
+- User explicitly requested all remaining AI-related settings appear under the existing AI setup screen (shown with AI Auto Reply, Custom AI System Prompt, and API Key Management).
+- Moved AI monthly budget and Advanced AI Pricing from generic Settings to the existing AI setup tab. Both remain Owner/Admin-only; provider key management remains Owner-only. Analytics remains read-only.
+- No API/database changes. GitHub CI and Vercel Preview still require verification for this commit; production unchanged.
