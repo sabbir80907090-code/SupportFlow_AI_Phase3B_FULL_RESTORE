@@ -104,3 +104,9 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - User authorized merging successful updates into main. Reviewed PR #23 and #25; both CI green at prior heads, and the production database already has usage/budget/pricing tables and migration history.
 - Consolidated PR #23's saved-key live model discovery into PR #25 without replacing the simplified key manager; added owner-authorized /api/ai/keys/models route. Kept ephemeral unsaved-key model suggestions and all previous UI features.
 - Release gate: latest integrated CI and Vercel Preview must pass before merging PR #25; do not merge overlapping PR #23 separately. Production runtime smoke checks still required after main deploy.
+
+## Responsive form dialog foundation — 2026-11-18
+- User approved changing Add API Key from an inline expanding form to an overlay and adopting the same pattern for other create/edit/connect forms where appropriate.
+- Added reusable components/form-dialog.tsx with mobile full-screen overlay, desktop centered modal, scrollable form, keyboard Escape, focus management and background scroll lock.
+- Migrated Add API Key form only as the first rollout. Preserved provider detection, model suggestions, encryption and per-business owner permission, existing submit API, and connected-key management.
+- Other forms remain unchanged pending separate review to avoid regressions. This is a feature branch only, no database migration or production release. CI, nested model-picker, mobile keyboard, login and end-to-end tests pending.
