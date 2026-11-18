@@ -67,3 +67,9 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Added a compact two-column mobile / four-column desktop read-only summary with provider balance availability, estimated spend, workspace budget remaining, and recorded token usage. It reuses the existing owner/admin-authorized business-scoped usage API; no duplicate ledger, billing action or migration.
 - Existing full Analytics remains read-only and existing AI setup controls unchanged. Real provider balance remains unavailable where unsupported; budget remaining is explicitly a workspace target.
 - Pending CI and Preview visual check; no production deployment performed for this update.
+
+## Simplified AI setup UX — 2026-11-18
+- User screenshots show overlong prompt textarea, repeated key/model cards and unclear controls. Refactored the existing AI setup UI, retaining the business-scoped data and existing API endpoints.
+- Auto Reply now a compact status/toggle card; optional Business Instructions editor is collapsed by default; connected AI provider key and its model are combined into one expandable card per key. Add key, enable/disable, priority, model save and delete actions preserved.
+- Budget and advanced pricing remain collapsed under AI setup; Analytics remains read-only. Mobile-friendly controls have at least 44px touch targets.
+- No customer data, provider secrets, database migrations or production deployments modified. CI and Preview visual QA pending.
