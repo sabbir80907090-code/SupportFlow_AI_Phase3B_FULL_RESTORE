@@ -2,6 +2,8 @@ import {NextRequest,NextResponse} from 'next/server';
 import {randomUUID} from 'node:crypto';
 import {authorizedBusiness,failure} from '@/lib/support-telegram-connect';
 import {encryptChannelCredential} from '@/lib/support-channel-credentials';
+import {detectAiProvider} from '@/lib/ai-provider-detection';
+import {discoverAiModels,type AiProvider} from '@/lib/support-ai-model-discovery';
 export const runtime='nodejs';
 const noStore={'Cache-Control':'no-store'};
 async function owner(req:NextRequest){try{return await authorizedBusiness(req)}catch{return null}}
@@ -16,7 +18,10 @@ export async function POST(req:NextRequest){
  let input:{label?:string;apiKey?:string;priority?:number;provider?:string;model?:string};
  try{input=await req.json()}catch{return failure('Invalid request')}
  const label=String(input.label??'').trim(),apiKey=String(input.apiKey??'').trim();
- const provider=input.provider??'gemini';
+ const detected=detectAiProvider(apiKey);
+ const provider=detected??input.provider;
+ if(!provider)return failure('Could not recognize provider. Select Google Gemini, OpenAI or Anthropic manually.');
+ if(detected&&input.provider&&input.provider!==detected)return failure('Selected provider does not match this API key.');
  const defaults:Record<string,string>={gemini:'gemini-flash-lite-latest',openai:'gpt-4.1-mini',anthropic:'claude-sonnet-4-5'};
  if(!Object.hasOwn(defaults,provider))return failure('Unsupported AI provider');
  const model=String(input.model??defaults[provider]).trim();
@@ -31,8 +36,12 @@ export async function POST(req:NextRequest){
   const response=await fetch(endpoint,{headers:provider==='gemini'?{'x-goog-api-key':apiKey}:provider==='openai'?{authorization:'Bearer '+apiKey}:{'x-api-key':apiKey,'anthropic-version':'2023-06-01'},signal:AbortSignal.timeout(12000),cache:'no-store'});
   if(!response.ok)return failure('Provider rejected the API key',400);
  }catch{return failure('Unable to verify provider API key',503)}
+ // Validate provider access and choose only a model returned for this key.
+ let discovered;
+ try{discovered=await discoverAiModels(provider as AiProvider,apiKey)}catch{return failure('Could not verify API key or available text models',400)}
+ const selectedModel=discovered.models.includes(model)?model:discovered.recommended;
  let cipher:string;try{cipher=encryptChannelCredential(apiKey,id)}catch{return failure('Encryption unavailable',503)}
- const {error}=await ctx.database.from('support_ai_api_keys').insert({id,business_id:ctx.businessId,label,provider,model,key_ciphertext:cipher,key_hint:apiKey.slice(-4),priority:Math.max(1,Math.min(9999,Number.isInteger(input.priority)?input.priority!:100))});
+ const {error}=await ctx.database.from('support_ai_api_keys').insert({id,business_id:ctx.businessId,label,provider,model:selectedModel,key_ciphertext:cipher,key_hint:apiKey.slice(-4),priority:Math.max(1,Math.min(9999,Number.isInteger(input.priority)?input.priority!:100))});
  if(error)return failure('Unable to save API key',503);
  return NextResponse.json({ok:true},{headers:noStore});
 }

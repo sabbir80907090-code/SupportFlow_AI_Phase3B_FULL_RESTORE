@@ -3,6 +3,7 @@ import {useEffect,useState} from 'react';
 import {WebsiteChannel} from '@/components/website-channel';
 import {MessengerChannel} from '@/components/messenger-channel';
 import {getSupabase} from '@/lib/supabase';
+import {MessageCircle,Send,Instagram,ChevronDown} from 'lucide-react';
 type Connection={id:string;display_name:string;external_account_id:string;enabled:boolean};
 const other=[
  {name:'Instagram',description:'Planned Instagram professional account conversations.'},
@@ -45,21 +46,34 @@ export function Channels({businessId}:{businessId:string}){
     </div>
    </div>
   </div>}
-  <p className="text-sm text-subtle">Connect your business channels and manage conversations from one inbox.</p>
-  <section className="rounded-2xl border border-line bg-panel p-6">
-   <div className="flex items-center justify-between gap-3"><h4 className="text-xl font-bold">Telegram</h4><span className="rounded-full bg-canvas px-3 py-1 text-xs">{loading?'Checking…':connection?.enabled?'Connected':'Not connected'}</span></div>
-   <p className="mt-2 text-sm text-subtle">Create a bot using Telegram @BotFather, then paste its token here. This connection belongs to the workspace selected above.</p>
+  <div className="rounded-2xl border border-line bg-panel p-4 sm:p-5">
+   <h3 className="text-lg font-bold text-ink">Connect your customer channels</h3>
+   <p className="mt-1 text-sm text-subtle">Choose where customers message you. All connected channels send conversations to the same Inbox.</p>
+   <div className="mt-3 flex flex-wrap gap-2 text-xs text-subtle"><span className="rounded-full bg-canvas px-3 py-2">1. Choose a channel</span><span className="rounded-full bg-canvas px-3 py-2">2. Connect your account</span><span className="rounded-full bg-canvas px-3 py-2">3. Reply from Inbox</span></div>
+  </div>
+  <details className="group rounded-2xl border border-line bg-panel shadow-soft">
+   <summary className="flex cursor-pointer list-none items-center gap-3 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
+    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500"><Send size={22}/></span>
+    <span className="min-w-0 flex-1"><span className="block font-bold text-ink">Telegram</span><span className="mt-1 block truncate text-sm text-subtle">{connection?.display_name??'Connect your Telegram bot to receive messages'}</span></span>
+    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${connection?.enabled?'bg-emerald-500/10 text-emerald-600':'bg-canvas text-subtle'}`}>{loading?'Checking…':connection?.enabled?'Connected':'Not connected'}</span>
+    <ChevronDown size={18} className="hidden shrink-0 text-subtle transition-transform group-open:rotate-180 sm:block"/>
+   </summary>
+   <div className="border-t border-line px-4 pb-5 pt-4 sm:px-5">
+    <p className="text-sm text-subtle">{connection?'Your Telegram bot is connected to this workspace.':'Create a bot with Telegram @BotFather, then paste its token below. Only this business can use this connection.'}</p>
    {error&&<p role="alert" className="mt-4 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-600">{error}</p>}
    {notice&&<p role="status" className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-600">{notice}</p>}
-   {connection?<div className="mt-5 space-y-3"><p className="font-semibold">{connection.display_name}</p><p className="text-sm text-subtle">Bot ID: {connection.external_account_id}</p><button disabled={busy} onClick={()=>setShowDeleteDialog(true)} className="rounded-xl border border-rose-500 px-4 py-2 text-sm font-semibold text-rose-600 disabled:opacity-50">{busy?'Deleting…':'Delete bot connection'}</button></div>:
+   {connection?<div className="mt-4 space-y-3"><p className="text-sm font-semibold text-ink">{connection.display_name}</p><p className="text-xs text-subtle">Bot ID: {connection.external_account_id}</p><button disabled={busy} onClick={()=>setShowDeleteDialog(true)} className="min-h-11 rounded-xl border border-rose-500 px-4 py-2 text-sm font-semibold text-rose-600 disabled:opacity-50">{busy?'Deleting…':'Delete bot connection'}</button></div>:
    <form onSubmit={connect} className="mt-5 max-w-lg space-y-3">
     <label className="block text-sm font-semibold">BotFather token<input type="password" autoComplete="off" spellCheck={false} required value={token} onChange={e=>setToken(e.target.value)} placeholder="Paste your Telegram bot token" className="mt-2 w-full rounded-xl border border-line bg-canvas px-4 py-3 text-sm"/></label>
     <button disabled={busy||loading||!token.trim()} className="rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy?'Verifying…':'Verify & Connect Bot'}</button>
    </form>}
-  </section>
+   </div>
+  </details>
   <MessengerChannel businessId={businessId}/>
   <WebsiteChannel businessId={businessId}/>
-  <div className="grid gap-5 md:grid-cols-2">{other.map(c=><div key={c.name} className="rounded-2xl border border-line bg-panel p-6"><span className="rounded-full bg-canvas px-3 py-1 text-xs text-subtle">Not implemented</span><h4 className="mt-4 text-xl font-bold">{c.name}</h4><p className="mt-3 text-sm text-subtle">{c.description}</p></div>)}</div>
+  <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5"><h3 className="text-base font-bold text-ink">More channels</h3><p className="mt-1 text-sm text-subtle">These integrations are planned, but not available yet.</p>
+   <div className="mt-3 grid gap-3 sm:grid-cols-2">{other.map(c=><div key={c.name} className="flex items-start gap-3 rounded-xl border border-line p-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-canvas text-subtle">{c.name==='Instagram'?<Instagram size={20}/>:<MessageCircle size={20}/>}</span><div className="min-w-0"><p className="font-semibold text-ink">{c.name} <span className="ml-1 text-xs font-normal text-subtle">Coming later</span></p><p className="mt-1 text-xs text-subtle">{c.description}</p></div></div>)}</div>
+  </section>
  </div>;
 }
 
