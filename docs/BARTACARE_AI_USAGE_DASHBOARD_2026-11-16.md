@@ -49,3 +49,10 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Applied automatic pricing migration to **isolated staging only**. Verified eight default rates, authenticated role cannot read rate table, service_role can. Rollback-only test with 1M input + 1M output for gpt-4.1-mini computed $2.00 correctly.
 - This is not a live price feed. Pricing can change, cached tokens, context length tiers, discounts, taxes, free tier and other billable modalities can differ; estimates remain approximate.
 - Latest CI run is pending; production default pricing migration and production app deployment NOT performed for this update.
+
+## Analytics read-only UX update — 2026-11-18
+- User provided desktop preview screenshot and confirmed Analytics should display financial/token data only, not contain settings.
+- Removed Monthly Budget editing from Analytics. Analytics now shows read-only estimated spend, provider balance availability, budget remaining, tokens and model usage.
+- Moved monthly budget form to Settings → AI monthly budget; Advanced AI Pricing remains under Settings, both Owner/Admin only.
+- Existing business-specific API authorization and budget saving logic preserved. No database migration needed for this UI change.
+- CI and Vercel Preview validation pending; not merged or released to production as part of this update.
