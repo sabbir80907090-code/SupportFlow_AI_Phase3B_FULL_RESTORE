@@ -79,3 +79,10 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - Added a short three-step onboarding explanation, collapsible status-first Telegram/Messenger/Website Chat cards, and compact Coming later cards for Instagram/WhatsApp. Kept existing business-scoped API routes, token input, Facebook OAuth, website embed, and disconnect confirmation logic unchanged.
 - Maintained Owner-only access to Channels as enforced by existing app routing and server authorization. Responsive card summaries, visible connection status, 44px touch targets for key actions.
 - CI and browser/mobile visual QA pending. Preview branch only, production unchanged.
+
+## Automatic AI provider identification — 2026-11-18
+- User wants pasted business API keys to identify Google Gemini, OpenAI or Anthropic without manually selecting a provider.
+- Added shared key-format hint detection and server-side enforcement. UI displays detected provider before saving; server still verifies with that provider's API. Unknown key formats require explicit manual selection; mismatched provider claims are rejected.
+- No secret is logged or stored in notes; existing encrypted per-business key storage and 10-key limit remain unchanged.
+- Current implementation detects provider only, not provider account wallet balance, billing tier or token quota. Pricing and usage remain separately estimated from tracked calls.
+- Preview branch only; CI, negative tests with real provider credentials and visual checks pending. Production unchanged.
