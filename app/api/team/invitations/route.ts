@@ -16,14 +16,23 @@ async function owner(req:NextRequest,businessId:string){
 export async function GET(req:NextRequest){
  const businessId=new URL(req.url).searchParams.get('businessId')??'';
  if(!/^[a-f0-9-]{36}$/i.test(businessId))return respond({error:'Invalid workspace'},400);
- const auth=await owner(req,businessId);if(!auth)return respond({error:'Owner access required'},403);
- const {data,error}=await auth.database.from('business_team_invitations')
+ const bearer=req.headers.get('authorization')??'';
+ if(!bearer.startsWith('Bearer '))return respond({error:'Sign in required'},401);
+ const database=db();
+ const {data:{user},error:authError}=await database.auth.getUser(bearer.slice(7));
+ if(authError||!user)return respond({error:'Sign in required'},401);
+ const {data:member,error:memberError}=await database.from('business_members').select('role')
+  .eq('business_id',businessId).eq('user_id',user.id).maybeSingle();
+ if(memberError)return respond({error:'Team service unavailable'},503);
+ if(member?.role!=='owner'&&member?.role!=='admin')return respond({error:'Owner or Admin access required'},403);
+ const {data:members,error:membersError}=await database.from('business_members').select('user_id,role')
+  .eq('business_id',businessId);
+ if(membersError)return respond({error:'Team list unavailable'},503);
+ if(member.role==='admin')return respond({invitations:[],members:members??[]});
+ const {data,error}=await database.from('business_team_invitations')
   .select('id,email,role,status,created_at,expires_at').eq('business_id',businessId)
   .order('created_at',{ascending:false}).limit(50);
  if(error)return respond({error:'Team invitations unavailable'},503);
- const {data:members,error:membersError}=await auth.database.from('business_members').select('user_id,role')
-  .eq('business_id',businessId);
- if(membersError)return respond({error:'Team list unavailable'},503);
  return respond({invitations:data??[],members:members??[]});
 }
 export async function POST(req:NextRequest){
