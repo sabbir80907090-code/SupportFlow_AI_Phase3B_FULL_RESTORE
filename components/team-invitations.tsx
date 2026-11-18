@@ -2,7 +2,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
 import {FormDialog} from '@/components/form-dialog';
-import {ShieldCheck,UserMinus,Users,Mail,Eye,EyeOff} from 'lucide-react';
+import {ShieldCheck,UserMinus,Users,Mail,Eye,EyeOff,MoreVertical} from 'lucide-react';
 
 type Invitation={id:string;email:string;status:string;created_at:string;expires_at:string};
 type Member={user_id:string;role:string};
@@ -12,7 +12,7 @@ const button='rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white dis
 export function TeamInvitations({businessId,role}:{businessId:string;role:string}){
  const [email,setEmail]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [invitations,setInvitations]=useState<Invitation[]>([]),[members,setMembers]=useState<Member[]>([]);
- const [loading,setLoading]=useState(true);
+ const [loading,setLoading]=useState(true),[openMenu,setOpenMenu]=useState<string|null>(null);
  const [removing,setRemoving]=useState<Member|null>(null),[password,setPassword]=useState(''),[showPassword,setShowPassword]=useState(false);
  const reserved=invitations.filter(i=>i.status==='pending'&&new Date(i.expires_at)>new Date()).length;
  const seatsUsed=members.length+reserved;
@@ -51,7 +51,7 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
   catch(e){setError(e instanceof Error?e.message:'Could not cancel')}
   finally{setBusy(false)}
  }
- function closeRemove(){if(busy)return;setRemoving(null);setPassword('');setShowPassword(false);}
+ function closeRemove(){if(busy)return;setRemoving(null);setPassword('');setShowPassword(false);setOpenMenu(null);}
  async function removeMember(e:React.FormEvent){
   e.preventDefault();if(!removing||busy||role!=='admin'||!password)return;
   setBusy(true);setError('');setNotice('');
@@ -60,7 +60,7 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
    const response=await fetch('/api/team/members',{method:'DELETE',headers:{authorization:'Bearer '+session.access_token,'content-type':'application/json'},body:JSON.stringify({businessId,memberId:removing.user_id,password}),cache:'no-store'});
    const result=await response.json();if(!response.ok)throw Error(result.error||'Could not remove member');
    setRemoving(null);setPassword('');setShowPassword(false);
-   await refresh();setNotice('Team member removed from this workspace. Their account was not deleted.');
+   await refresh();setNotice('Team member disconnected from this workspace. Their account was not deleted.');
   }catch(e){setError(e instanceof Error?e.message:'Could not remove member')}
   finally{setBusy(false)}
  }
@@ -78,7 +78,7 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
   <div className="mt-6 space-y-3"><div className="flex items-center justify-between gap-2"><h5 className="font-semibold">Current team ({members.length})</h5><span className="text-xs text-subtle">Owner · Admin · Agent</span></div>
    {loading?<p className="text-sm text-subtle">Loading team…</p>:members.map(m=><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3 sm:p-4" key={m.user_id}>
     <div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">{m.role==='owner'?<ShieldCheck size={20}/>:<Users size={19}/>}</span><div className="min-w-0"><p className="text-sm font-semibold">{m.role==='owner'?'Workspace Owner':m.role==='admin'?'Administrator':'Support Agent'}</p><p className="text-xs text-subtle">Member ID: {m.user_id.slice(0,8)}…</p></div></div>
-    {role==='admin'&&m.role==='agent'&&<button type="button" disabled={busy} onClick={()=>{setRemoving(m);setPassword('');setError('');setShowPassword(false)}} className="flex min-h-11 items-center gap-2 rounded-xl border border-rose-500/40 px-3 text-sm font-semibold text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"><UserMinus size={16}/>Remove</button>}
+    {role==='admin'&&m.role==='agent'&&<div className="relative"><button type="button" aria-label="Member actions" aria-expanded={openMenu===m.user_id} aria-haspopup="menu" disabled={busy} onClick={()=>setOpenMenu(v=>v===m.user_id?null:m.user_id)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-line text-ink hover:bg-canvas disabled:opacity-50"><MoreVertical size={20}/></button>{openMenu===m.user_id&&<div role="menu" aria-label="Member actions" className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-xl border border-line bg-panel p-1 shadow-lg"><button type="button" role="menuitem" onClick={()=>{setOpenMenu(null);setRemoving(m);setPassword('');setError('');setShowPassword(false)}} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-rose-500 hover:bg-rose-500/10"><UserMinus size={16}/>Disconnect member</button></div>}</div>}
     {m.role==='owner'&&<span className="text-xs text-subtle">Protected</span>}
    </div>)}
    {role==='owner'&&<p className="text-xs text-subtle">Only workspace Admins can remove Agents. Owners and Admins are protected from removal here.</p>}
@@ -90,8 +90,8 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
     {i.status==='pending'&&new Date(i.expires_at)>new Date()&&<button type="button" disabled={busy} className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50" onClick={()=>void revoke(i.id)}>Cancel</button>}
    </div>)}
   </div>}
-  <FormDialog open={!!removing} title="Remove team member?" description="This action removes access to this workspace only." onClose={closeRemove} busy={busy}>
-   <form onSubmit={removeMember} className="space-y-4"><p className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-sm">You are removing a Support Agent. Their login and other business workspaces will remain unchanged.</p><p className="text-sm text-subtle">Member: {removing?.user_id.slice(0,8)}…</p><label className="block text-sm font-semibold">Confirm your admin password<div className="relative mt-2"><input type={showPassword?'text':'password'} autoComplete="current-password" required minLength={1} maxLength={1024} value={password} onChange={e=>setPassword(e.target.value)} className={field+' pr-14'} placeholder="Enter your password"/><button type="button" aria-label={showPassword?'Hide password':'Show password'} onClick={()=>setShowPassword(v=>!v)} className="absolute inset-y-0 right-1 flex w-11 items-center justify-center text-subtle">{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></label>{error&&<p role="alert" className="text-sm text-rose-500">{error}</p>}<div className="flex gap-2"><button type="button" disabled={busy} onClick={closeRemove} className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm">Cancel</button><button type="submit" disabled={busy||!password} className="min-h-11 flex-1 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy?'Verifying…':'Remove Agent'}</button></div></form>
+  <FormDialog open={!!removing} title="Disconnect team member?" description="This action disconnects the member from this workspace only." onClose={closeRemove} busy={busy}>
+   <form onSubmit={removeMember} className="space-y-4"><p className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-sm">You are disconnecting a Support Agent. Their login and other business workspaces will remain unchanged.</p><p className="text-sm text-subtle">Member: {removing?.user_id.slice(0,8)}…</p><label className="block text-sm font-semibold">Confirm your admin password<div className="relative mt-2"><input type={showPassword?'text':'password'} autoComplete="current-password" required minLength={1} maxLength={1024} value={password} onChange={e=>setPassword(e.target.value)} className={field+' pr-14'} placeholder="Enter your password"/><button type="button" aria-label={showPassword?'Hide password':'Show password'} onClick={()=>setShowPassword(v=>!v)} className="absolute inset-y-0 right-1 flex w-11 items-center justify-center text-subtle">{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></label>{error&&<p role="alert" className="text-sm text-rose-500">{error}</p>}<div className="flex gap-2"><button type="button" disabled={busy} onClick={closeRemove} className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm">Cancel</button><button type="submit" disabled={busy||!password} className="min-h-11 flex-1 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy?'Verifying…' :'Disconnect Agent'}</button></div></form>
   </FormDialog>
  </section>;
 }
