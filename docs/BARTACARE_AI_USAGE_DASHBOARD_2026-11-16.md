@@ -86,3 +86,10 @@ Status: feature branch only; no production deployment, DB migration or live E2E 
 - No secret is logged or stored in notes; existing encrypted per-business key storage and 10-key limit remain unchanged.
 - Current implementation detects provider only, not provider account wallet balance, billing tier or token quota. Pricing and usage remain separately estimated from tracked calls.
 - Preview branch only; CI, negative tests with real provider credentials and visual checks pending. Production unchanged.
+
+## Preview deployment incident resolution — 2026-11-18
+- Vercel screenshot showed multiple failed historical Preview deployments after Channels UI refactor.
+- GitHub CI run 44230989822 confirmed JSX closing-tag TypeScript errors in components/messenger-channel.tsx and components/website-channel.tsx. Corrected closing tags in subsequent commits.
+- Verified GitHub Actions run 44231354159 at commit be165545: TypeScript check PASS and unit tests PASS.
+- Verified Vercel Preview deployment dpl_FAkND6g2j525qiQNKShMHCCStGNG at commit be165545: READY (bartacare-z9hvn94dj-nax10.vercel.app). Historical ERROR deployments remain immutable history, not ongoing failures.
+- Production was not changed; PR #25 remains open. Browser login, channel connection E2E, and mobile visual QA still pending.
