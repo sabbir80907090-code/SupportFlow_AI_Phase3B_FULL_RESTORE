@@ -2,6 +2,7 @@ import {NextRequest,NextResponse} from 'next/server';
 import {randomUUID} from 'node:crypto';
 import {authorizedBusiness,failure} from '@/lib/support-telegram-connect';
 import {encryptChannelCredential} from '@/lib/support-channel-credentials';
+import {detectAiProvider} from '@/lib/ai-provider-detection';
 export const runtime='nodejs';
 const noStore={'Cache-Control':'no-store'};
 async function owner(req:NextRequest){try{return await authorizedBusiness(req)}catch{return null}}
@@ -16,7 +17,10 @@ export async function POST(req:NextRequest){
  let input:{label?:string;apiKey?:string;priority?:number;provider?:string;model?:string};
  try{input=await req.json()}catch{return failure('Invalid request')}
  const label=String(input.label??'').trim(),apiKey=String(input.apiKey??'').trim();
- const provider=input.provider??'gemini';
+ const detected=detectAiProvider(apiKey);
+ const provider=detected??input.provider;
+ if(!provider)return failure('Could not recognize provider. Select Google Gemini, OpenAI or Anthropic manually.');
+ if(detected&&input.provider&&input.provider!==detected)return failure('Selected provider does not match this API key.');
  const defaults:Record<string,string>={gemini:'gemini-flash-lite-latest',openai:'gpt-4.1-mini',anthropic:'claude-sonnet-4-5'};
  if(!Object.hasOwn(defaults,provider))return failure('Unsupported AI provider');
  const model=String(input.model??defaults[provider]).trim();
