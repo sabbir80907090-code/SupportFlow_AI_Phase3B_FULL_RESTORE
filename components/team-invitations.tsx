@@ -2,7 +2,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
 import {FormDialog} from '@/components/form-dialog';
-import {ShieldCheck,UserMinus,Users,Mail,Eye,EyeOff} from 'lucide-react';
+import {ShieldCheck,UserMinus,MoreHorizontal,Users,Mail,Eye,EyeOff} from 'lucide-react';
 
 type Invitation={id:string;email:string;status:string;created_at:string;expires_at:string};
 type Member={user_id:string;role:string};
@@ -53,7 +53,7 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
  }
  function closeRemove(){if(busy)return;setRemoving(null);setPassword('');setShowPassword(false);}
  async function removeMember(e:React.FormEvent){
-  e.preventDefault();if(!removing||busy||role!=='admin'||!password)return;
+  e.preventDefault();if(!removing||busy||role!=='owner'||!password)return;
   setBusy(true);setError('');setNotice('');
   try{
    const sb=getSupabase();const {data:{session}}=await sb!.auth.getSession();if(!session)throw Error('Sign in again');
@@ -78,10 +78,10 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
   <div className="mt-6 space-y-3"><div className="flex items-center justify-between gap-2"><h5 className="font-semibold">Current team ({members.length})</h5><span className="text-xs text-subtle">Owner · Admin · Agent</span></div>
    {loading?<p className="text-sm text-subtle">Loading team…</p>:members.map(m=><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3 sm:p-4" key={m.user_id}>
     <div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">{m.role==='owner'?<ShieldCheck size={20}/>:<Users size={19}/>}</span><div className="min-w-0"><p className="text-sm font-semibold">{m.role==='owner'?'Workspace Owner':m.role==='admin'?'Administrator':'Support Agent'}</p><p className="text-xs text-subtle">Member ID: {m.user_id.slice(0,8)}…</p></div></div>
-    {role==='admin'&&m.role==='agent'&&<button type="button" disabled={busy} onClick={()=>{setRemoving(m);setPassword('');setError('');setShowPassword(false)}} className="flex min-h-11 items-center gap-2 rounded-xl border border-rose-500/40 px-3 text-sm font-semibold text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"><UserMinus size={16}/>Remove</button>}
+    {role==='owner'&&['admin','agent'].includes(m.role)&&<details className="relative"><summary aria-label={'Actions for member '+m.user_id} className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-line"><MoreHorizontal size={20}/></summary><button type="button" disabled={busy} onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');setRemoving(m);setPassword('');setError('');setShowPassword(false)}} className="absolute right-0 z-10 flex min-h-11 w-max items-center gap-2 rounded-xl bg-panel border border-rose-500/40 px-3 text-sm font-semibold text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"><UserMinus size={16}/>Delete member</button></details>}
     {m.role==='owner'&&<span className="text-xs text-subtle">Protected</span>}
    </div>)}
-   {role==='owner'&&<p className="text-xs text-subtle">Only workspace Admins can remove Agents. Owners and Admins are protected from removal here.</p>}
+   {role==='owner'&&<p className="text-xs text-subtle">Enter your owner password to remove a member from this workspace.</p>}
   </div>
   {role==='owner'&&<div className="mt-5 space-y-2"><h5 className="flex items-center gap-2 font-semibold"><Mail size={17}/>Invitations</h5>
    {!loading&&!invitations.length&&<p className="text-sm text-subtle">No invitations yet.</p>}
@@ -90,8 +90,8 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
     {i.status==='pending'&&new Date(i.expires_at)>new Date()&&<button type="button" disabled={busy} className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50" onClick={()=>void revoke(i.id)}>Cancel</button>}
    </div>)}
   </div>}
-  <FormDialog open={!!removing} title="Remove team member?" description="This action removes access to this workspace only." onClose={closeRemove} busy={busy}>
-   <form onSubmit={removeMember} className="space-y-4"><p className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-sm">You are removing a Support Agent. Their login and other business workspaces will remain unchanged.</p><p className="text-sm text-subtle">Member: {removing?.user_id.slice(0,8)}…</p><label className="block text-sm font-semibold">Confirm your admin password<div className="relative mt-2"><input type={showPassword?'text':'password'} autoComplete="current-password" required minLength={1} maxLength={1024} value={password} onChange={e=>setPassword(e.target.value)} className={field+' pr-14'} placeholder="Enter your password"/><button type="button" aria-label={showPassword?'Hide password':'Show password'} onClick={()=>setShowPassword(v=>!v)} className="absolute inset-y-0 right-1 flex w-11 items-center justify-center text-subtle">{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></label>{error&&<p role="alert" className="text-sm text-rose-500">{error}</p>}<div className="flex gap-2"><button type="button" disabled={busy} onClick={closeRemove} className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm">Cancel</button><button type="submit" disabled={busy||!password} className="min-h-11 flex-1 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy?'Verifying…':'Remove Agent'}</button></div></form>
+  <FormDialog open={!!removing} title="Delete team member?" description="This action removes access to this workspace only." onClose={closeRemove} busy={busy}>
+   <form onSubmit={removeMember} className="space-y-4"><p className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-sm">This member will lose access to the selected workspace.</p><p className="text-sm text-subtle">Member: {removing?.user_id.slice(0,8)}…</p><label className="block text-sm font-semibold">Confirm your owner password<div className="relative mt-2"><input type={showPassword?'text':'password'} autoComplete="current-password" required minLength={1} maxLength={1024} value={password} onChange={e=>setPassword(e.target.value)} className={field+' pr-14'} placeholder="Enter your password"/><button type="button" aria-label={showPassword?'Hide password':'Show password'} onClick={()=>setShowPassword(v=>!v)} className="absolute inset-y-0 right-1 flex w-11 items-center justify-center text-subtle">{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></label>{error&&<p role="alert" className="text-sm text-rose-500">{error}</p>}<div className="flex gap-2"><button type="button" disabled={busy} onClick={closeRemove} className="min-h-11 flex-1 rounded-xl border border-line px-4 text-sm">Cancel</button><button type="submit" disabled={busy||!password} className="min-h-11 flex-1 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy?'Verifying…':'Delete member'}</button></div></form>
   </FormDialog>
  </section>;
 }
