@@ -1,6 +1,6 @@
 # Inbox phone notifications
 
-Each browser, signed-in staff member and workspace has a separate opt-in. The Inbox starts with **না** selected. **হ্যাঁ** requests browser permission. An inbound message queues a generic notification for subscribed devices of the assigned member, or subscribed owners and admins when unassigned. Tapping the notification opens that workspace's Inbox. Removing a member or deleting a subscription removes their queued deliveries. Outbound replies do not enqueue notifications.
+Each browser, signed-in staff member and workspace has a separate opt-in. Settings → নোটিফিকেশন starts with **না** selected. **হ্যাঁ** requests browser permission. An inbound message queues a generic notification for subscribed devices of the assigned member, or subscribed owners and admins when unassigned. Tapping the notification opens that workspace's Inbox. Removing a member or deleting a subscription removes their queued deliveries. Outbound replies do not enqueue notifications.
 
 ## Configuration
 
@@ -19,7 +19,7 @@ After database approval, apply the migration ending in **inbox_phone_push.sql** 
 
 ## Phone acceptance check
 
-1. Open the Inbox in a supported browser. On iPhone, install BartaCare on the Home Screen and launch it there.
+1. Open Settings → নোটিফিকেশন in a supported browser. On iPhone, install BartaCare on the Home Screen and launch it there.
 2. With **না** selected, send an inbound customer message. Confirm it appears in the Inbox without a phone alert.
 3. Select **হ্যাঁ**, grant permission and close the app. Send another customer message. Check the notification text and tap it to open the Inbox.
 4. Repeat with an assigned member, an unassigned conversation, and a member of another business. Check an outbound reply produces no alert.

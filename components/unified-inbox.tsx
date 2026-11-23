@@ -1,5 +1,4 @@
 'use client';
-import {InboxPhoneAlerts} from '@/components/inbox-phone-alerts';
 import {useEffect,useRef,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
 import {needsReply,needsAttention,waitMinutes,sortByPriority,matchesInboxQueue,type InboxQueue} from '@/lib/inbox-priority';
@@ -82,7 +81,6 @@ export function UnifiedInbox({businessId,role,onDraftChange}:{businessId:string;
    <div><h2 className="text-left text-base font-bold tracking-tight text-ink">Conversations</h2><p className="mt-1 text-left text-xs text-subtle">Latest 100 chats · counts apply to this list.</p></div>
    <button type="button" onClick={()=>setTick(n=>n+1)} className="inline-flex items-center gap-2 rounded-xl border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-canvas"><RefreshCw size={15}/> Refresh</button>
   </div>
-  {userId&&<InboxPhoneAlerts key={businessId+userId} businessId={businessId} userId={userId}/>}
   {error&&<p role="alert" className="flex items-center gap-2 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-500"><AlertCircle size={16}/>{error}</p>}
   <div className="grid min-h-0 flex-1 overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:bg-panel lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
    <aside className={`min-w-0 rounded-xl border border-line bg-panel lg:rounded-none lg:border-0 lg:border-r ${active?'hidden lg:flex':'flex'} flex-col`}>

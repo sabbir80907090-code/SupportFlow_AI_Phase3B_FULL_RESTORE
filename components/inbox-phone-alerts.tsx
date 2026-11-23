@@ -40,7 +40,7 @@ export function InboxPhoneAlerts({businessId,userId}:{businessId:string;userId:s
       }
       if(active){setEnabled(subscribed);setAvailable(true);}
     }
-    read().catch(()=>{if(active)setMessage('পছন্দ যাচাই করা যায়নি। Inbox আবার খুলুন।');})
+    read().catch(()=>{if(active)setMessage('পছন্দ যাচাই করা যায়নি। Settings আবার খুলুন।');})
       .finally(()=>{if(active)setBusy(false);});
     return ()=>{active=false;};
   },[businessId,userId,scope]);
