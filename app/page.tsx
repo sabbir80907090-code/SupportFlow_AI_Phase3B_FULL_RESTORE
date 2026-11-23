@@ -5,6 +5,7 @@ import type {User} from '@supabase/supabase-js';
 import {getSupabase} from '@/lib/supabase';
 import {KnowledgeBase} from '@/components/knowledge-base';
 import {Channels} from '@/components/channels';
+import {clearPhoneAlertsOnLogout} from '@/components/inbox-phone-alerts';
 import {UnifiedInbox} from '@/components/unified-inbox';
 import {SupportAiSettings} from '@/components/support-ai-settings';
 import {AiUsageDashboard} from '@/components/ai-usage-dashboard';
@@ -53,7 +54,7 @@ export default function Home(){
  const [authMode,setAuthMode]=useState<'login'|'signup'>('login'),[email,setEmail]=useState(''),[password,setPassword]=useState('');
  const [businesses,setBusinesses]=useState<Business[]>([]),[members,setMembers]=useState<Membership[]>([]),[businessId,setBusinessId]=useState(''),[newBusiness,setNewBusiness]=useState('');
  const [customers,setCustomers]=useState<Customer[]>([]),[orders,setOrders]=useState<Order[]>([]),[tab,setTab]=useState<Tab>('Overview');
- useEffect(()=>{if(new URLSearchParams(window.location.search).has('messenger'))setTab('Channels');},[]);
+ useEffect(()=>{const query=new URLSearchParams(window.location.search);if(query.has('messenger'))setTab('Channels');else if(query.has('inbox'))setTab('Inbox');},[]);
  const [customerName,setCustomerName]=useState(''),[customerEmail,setCustomerEmail]=useState(''),[customerPhone,setCustomerPhone]=useState('');
  const [orderCustomer,setOrderCustomer]=useState(''),[product,setProduct]=useState(''),[amount,setAmount]=useState(''),[currency,setCurrency]=useState('BDT');
  const [filter,setFilter]=useState('all'),[search,setSearch]=useState(''),[showNewOrder,setShowNewOrder]=useState(false),[showNewCustomer,setShowNewCustomer]=useState(false);
@@ -92,7 +93,7 @@ export default function Home(){
  },[]);
  useEffect(()=>{if(!sb){setReady(true);return;}let active=true;
   sb.auth.getUser().then(({data,error})=>{if(active){setUser(error?null:data.user);setReady(true);}}).catch(()=>setReady(true));
-  const {data:{subscription}}=sb.auth.onAuthStateChange((_event,session)=>{if(active)setUser(session?.user??null);});
+  const {data:{subscription}}=sb.auth.onAuthStateChange((_event,session)=>{if(active)setUser(session?.user??null);if(_event==='SIGNED_OUT')void clearPhoneAlertsOnLogout().catch(()=>{});});
   return()=>{active=false;subscription.unsubscribe();};
  },[]);
  useEffect(()=>{
