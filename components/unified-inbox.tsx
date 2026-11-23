@@ -3,10 +3,10 @@ import {InboxPhoneAlerts} from '@/components/inbox-phone-alerts';
 import {useEffect,useRef,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
 import {needsReply,needsAttention,waitMinutes,sortByPriority,matchesInboxQueue,type InboxQueue} from '@/lib/inbox-priority';
-import {MessageCircle,RefreshCw,Search,Send,Pause,Play,Clock,Inbox,ChevronLeft,AlertCircle,Trash2} from 'lucide-react';
+import {MessageCircle,RefreshCw,Search,Send,Pause,Play,Clock,Inbox,ChevronLeft,AlertCircle,MoreHorizontal,Trash2} from 'lucide-react';
 
 type Conversation={id:string;channel:string;sender_id:string;display_name:string;ai_paused:boolean;last_message_at:string|null;last_inbound_at:string|null;last_outbound_at:string|null;assigned_to:string|null};
-type Message={id:string;direction:string;text:string;kind:string;created_at:string;event_id:string;deleted_at:string|null};
+type Message={id:string;direction:string;text:string;kind:string;created_at:string;event_id:string;deleted_at:string|null;telegram_delivery:{bot:string;chat:string;message:string}|null};
 type ReplyDraft={text:string;requestId:string};
 type Queued={id:string;text:string;status:string};
 const formatTime=(value:string)=>new Date(value).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -151,16 +151,36 @@ function Thread({conversation,businessId,tick,role,userId,priorityReady,refresh,
  function mergeMessages(previous:Message[],incoming:Message[]){return [...new Map([...previous,...incoming].map(m=>[m.id,m])).values()].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id));}
  async function loadOlder(){
   const db=getSupabase(),oldest=messages[0];if(!db||!oldest||olderLock.current)return;olderLock.current=true;setLoadingOlder(true);setError('');
-  try{const {data,error}=await db.from('support_messages').select('id,direction,text,kind,created_at,event_id,deleted_at').eq('business_id',businessId).eq('conversation_id',conversation.id).or(`created_at.lt.${oldest.created_at},and(created_at.eq.${oldest.created_at},id.lt.${oldest.id})`).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100);if(error)throw error;setMessages(previous=>mergeMessages(previous,(data??[]).filter(m=>!m.deleted_at)));setHasOlder((data?.length??0)===100);}
+  try{const {data,error}=await db.from('support_messages').select('id,direction,text,kind,created_at,event_id,deleted_at,telegram_delivery').eq('business_id',businessId).eq('conversation_id',conversation.id).or(`created_at.lt.${oldest.created_at},and(created_at.eq.${oldest.created_at},id.lt.${oldest.id})`).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100);if(error)throw error;setMessages(previous=>mergeMessages(previous,data??[]));setHasOlder((data?.length??0)===100);}
   catch{setError('Could not load older messages. Please try again.');}finally{olderLock.current=false;setLoadingOlder(false);}
  }
- async function deleteMessage(id:string){const db=getSupabase();if(!db||busy)return;setBusy(true);setError('');try{const {data,error}=await db.rpc('soft_delete_support_message',{p_message_id:id});if(error)throw error;if(!data)throw new Error('Message not found or permission denied');setMessages(old=>old.filter(m=>m.id!==id));setDeletingId(null);refresh();}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
+ const selectedReply=messages.find(message=>message.id===deletingId);
+ const canDeleteOnTelegram=conversation.channel==='telegram'&&selectedReply?.telegram_delivery&&Date.now()-Date.parse(selectedReply.created_at)<48*3600000;
+ async function deleteMessage(id:string,onTelegram=false){
+  const db=getSupabase();if(!db||busy)return;
+  setBusy(true);setError('');
+  let providerDeleted=false;
+  try{
+   if(onTelegram){
+    const {data:{session}}=await db.auth.getSession();
+    if(!session)throw Error('Sign in again.');
+    const response=await fetch('/api/inbox/telegram-reply',{method:'DELETE',
+     headers:{authorization:'Bearer '+session.access_token,'content-type':'application/json'},
+     body:JSON.stringify({businessId,messageId:id})});
+    if(!response.ok){const result=await response.json();throw Error(result.error||'Telegram deletion could not be confirmed.');}
+    providerDeleted=true;
+   }
+   const {data,error}=await db.rpc('soft_delete_support_message',{p_message_id:id});
+   if(error||!data)throw Error(providerDeleted?'Telegram removed the reply. Use Delete from inbox to finish.':'Could not remove this reply from the inbox.');
+   setMessages(old=>old.filter(m=>m.id!==id));setDeletingId(null);refresh();
+  }catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
+ }
  function scrollToLatest(){endRef.current?.parentElement?.scrollTo({top:endRef.current.parentElement.scrollHeight,behavior:'smooth'});nearBottom.current=true;setNewMessages(false);}
 
  useEffect(()=>{let live=true;const db=getSupabase();if(db)Promise.all([
-  db.from('support_messages').select('id,direction,text,kind,created_at,event_id,deleted_at').eq('business_id',businessId).eq('conversation_id',conversation.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100),
+  db.from('support_messages').select('id,direction,text,kind,created_at,event_id,deleted_at,telegram_delivery').eq('business_id',businessId).eq('conversation_id',conversation.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100),
   db.from('support_outbox').select('id,text,status').eq('business_id',businessId).eq('conversation_id',conversation.id).neq('status','sent').order('created_at',{ascending:false}).limit(30)
- ]).then(([m,q])=>{if(!live)return;setLoading(false);if(m.error||q.error)setLoadError(m.error?.message??q.error?.message??'Load failed');else{setLoadError('');if(firstLoad.current)setHasOlder((m.data?.length??0)===100);setMessages(previous=>mergeMessages(previous,(m.data??[]).filter(m=>!m.deleted_at)));setQueued(q.data??[])}});return()=>{live=false}},[businessId,conversation.id,tick]);
+ ]).then(([m,q])=>{if(!live)return;setLoading(false);if(m.error||q.error)setLoadError(m.error?.message??q.error?.message??'Load failed');else{setLoadError('');if(firstLoad.current)setHasOlder((m.data?.length??0)===100);setMessages(previous=>mergeMessages(previous,m.data??[]));setQueued(q.data??[])}});return()=>{live=false}},[businessId,conversation.id,tick]);
  const latestMessage=messages.at(-1)?.id,latestQueued=queued[0]?.id;
  useEffect(()=>{if(loading)return;if(firstLoad.current||nearBottom.current){scrollToLatest();firstLoad.current=false;}else setNewMessages(true);},[latestMessage,latestQueued,loading]);
  const assignedElsewhere=!!conversation.assigned_to&&conversation.assigned_to!==userId;
@@ -175,13 +195,25 @@ function Thread({conversation,businessId,tick,role,userId,priorityReady,refresh,
   {conversation.assigned_to&&<p className="px-4 py-1 text-xs text-subtle">{conversation.assigned_to===userId?'You are handling this conversation.':'A teammate is handling this conversation.'} {assignedElsewhere&&role==='agent'?'Ask an Owner or Admin to transfer it.':''}</p>}
   <div onScroll={e=>{const el=e.currentTarget;nearBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<100;if(nearBottom.current)setNewMessages(false)}} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-canvas/30 p-4 sm:p-6">
    {loading&&<p role="status" className="py-12 text-center text-sm text-subtle">Loading messages…</p>}
-   {!loading&&!loadError&&!messages.length&&!queued.length&&<p className="py-12 text-center text-sm text-subtle">No messages in this conversation yet.</p>}
+   {!loading&&!loadError&&!messages.some(m=>!m.deleted_at)&&!queued.length&&<p className="py-12 text-center text-sm text-subtle">No messages in this conversation yet.</p>}
    {hasOlder&&messages.length>0&&<button type="button" disabled={loadingOlder} onClick={()=>void loadOlder()} className="mx-auto block min-h-11 rounded-xl border border-line px-4 text-sm text-brand">{loadingOlder?'Loading older messages…':'Load older messages'}</button>}
-   {messages.filter(m=>!m.deleted_at).map(m=><div key={m.id} className={`flex ${m.direction==='outbound'?'justify-end':'justify-start'}`}><div className={`min-w-0 max-w-[92%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${m.direction==='outbound'?'rounded-br-md bg-brand text-white':'rounded-bl-md border border-line bg-panel text-ink'}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.text}</p>{m.direction==='inbound'&&role!=='agent'&&<div className="mt-2 flex justify-end"><button type="button" aria-label="Delete message" disabled={busy} onClick={()=>setDeletingId(m.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"><Trash2 size={13}/> Delete</button></div>}<p className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70"><Clock size={11}/>{new Date(m.created_at).toLocaleDateString([],{month:'short',day:'numeric'})+' · '+formatTime(m.created_at)}{m.direction==='outbound'&&m.event_id.startsWith('outbox:')&&<span title="Published to chat or accepted by the messaging provider; this does not confirm it was read."> · Sent</span>}</p></div></div>)}
+   {messages.filter(m=>!m.deleted_at).map(m=><div key={m.id} className={`flex ${m.direction==='outbound'?'justify-end':'justify-start'}`}><div className={`min-w-0 max-w-[92%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${m.direction==='outbound'?'rounded-br-md bg-brand text-white':'rounded-bl-md border border-line bg-panel text-ink'}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.text}</p>{m.direction==='outbound'&&userId&&(
+     <details name="reply-actions" className="mt-1 ml-auto w-fit text-right">
+      <summary aria-label="Reply options" className="ml-auto flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-lg hover:bg-white/15 focus-visible:outline [&::-webkit-details-marker]:hidden">
+       <MoreHorizontal size={20} aria-hidden="true"/>
+      </summary>
+      <button type="button" disabled={busy} onClick={event=>{
+       event.currentTarget.closest('details')?.removeAttribute('open');
+       setDeletingId(m.id);
+      }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-panel px-3 text-sm font-semibold text-ink disabled:opacity-50">
+       <Trash2 size={15} aria-hidden="true"/> Delete
+      </button>
+     </details>
+    )}<p className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70"><Clock size={11}/>{new Date(m.created_at).toLocaleDateString([],{month:'short',day:'numeric'})+' · '+formatTime(m.created_at)}{m.direction==='outbound'&&m.event_id.startsWith('outbox:')&&<span title="Published to chat or accepted by the messaging provider; this does not confirm it was read."> · Sent</span>}</p></div></div>)}
    {queued.map(q=><div key={q.id} className="flex justify-end"><div className="max-w-[92%] rounded-2xl rounded-br-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 sm:max-w-[78%]"><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{q.text}</p><p className="mt-2 text-xs text-amber-600">{q.status==='claimed'?'Sending…':q.status==='needs_review'?'Delivery unconfirmed — needs review':q.status==='queued'?'Waiting to send':'Status unavailable'}</p>{q.status==='needs_review'&&<p className="mt-1 text-xs text-subtle">The provider did not confirm delivery. Check the conversation in {channelName(conversation.channel)} before sending again to avoid a duplicate.</p>}</div></div>)}
    <div ref={endRef}/>
   </div>
-  {deletingId&&<div role="dialog" aria-modal="true" aria-label="Confirm delete message" className="mx-4 my-2 rounded-xl border border-rose-500/40 bg-panel p-4 text-sm"><p className="font-semibold text-ink">Delete this customer message?</p><p className="mt-1 text-subtle">This hides the message from the inbox. It cannot be undone here.</p><div className="mt-3 flex gap-2"><button type="button" disabled={busy} onClick={()=>setDeletingId(null)} className="min-h-11 rounded-lg border border-line px-4">Cancel</button><button type="button" disabled={busy} onClick={()=>void deleteMessage(deletingId)} className="min-h-11 rounded-lg bg-rose-600 px-4 font-semibold text-white">{busy?'Deleting…':'Delete message'}</button></div></div>}
+  {deletingId&&<div role="dialog" aria-modal="true" aria-label="Confirm delete message" className="mx-4 my-2 rounded-xl border border-rose-500/40 bg-panel p-4 text-sm"><p className="font-semibold text-ink">Delete this sent reply?</p><p className="mt-1 text-subtle">This hides the reply in BartaCare. A delivered copy may still be visible to the customer.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={()=>setDeletingId(null)} className="min-h-11 rounded-lg border border-line px-4">Cancel</button><button type="button" disabled={busy} onClick={()=>void deleteMessage(deletingId)} className="min-h-11 rounded-lg bg-rose-600 px-4 font-semibold text-white">{busy?'Deleting…':'Delete from inbox'}</button>{canDeleteOnTelegram&&<button type="button" disabled={busy} onClick={()=>void deleteMessage(deletingId,true)} className="min-h-11 rounded-lg border border-rose-500 px-4">Delete from Telegram and inbox</button>}</div></div>}
   {newMessages&&<button type="button" onClick={scrollToLatest} className="mx-auto my-2 min-h-10 rounded-full border border-brand px-4 text-sm text-brand">View latest messages ↓</button>}
   {loadError&&<p role="alert" className="mx-4 mt-2 text-sm text-rose-500">Could not refresh messages. <button type="button" onClick={refresh} className="underline">Try again</button></p>}
   {error&&<p role="alert" className="mx-4 mt-2 text-sm text-rose-500">{error}</p>}
