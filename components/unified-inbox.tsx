@@ -2,7 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {getSupabase} from '@/lib/supabase';
 import {needsReply,needsAttention,waitMinutes,sortByPriority,matchesInboxQueue,type InboxQueue} from '@/lib/inbox-priority';
-import {MessageCircle,RefreshCw,Search,Send,Pause,Play,Clock,Inbox,ChevronLeft,AlertCircle,Trash2} from 'lucide-react';
+import {MessageCircle,RefreshCw,Search,Send,Pause,Play,Clock,Inbox,ChevronLeft,AlertCircle,MoreHorizontal,Trash2} from 'lucide-react';
 
 type Conversation={id:string;channel:string;sender_id:string;display_name:string;ai_paused:boolean;last_message_at:string|null;last_inbound_at:string|null;last_outbound_at:string|null;assigned_to:string|null};
 type Message={id:string;direction:string;text:string;kind:string;created_at:string;event_id:string;deleted_at:string|null;telegram_delivery:{bot:string;chat:string;message:string}|null};
@@ -195,7 +195,19 @@ function Thread({conversation,businessId,tick,role,userId,priorityReady,refresh,
    {loading&&<p role="status" className="py-12 text-center text-sm text-subtle">Loading messages…</p>}
    {!loading&&!loadError&&!messages.some(m=>!m.deleted_at)&&!queued.length&&<p className="py-12 text-center text-sm text-subtle">No messages in this conversation yet.</p>}
    {hasOlder&&messages.length>0&&<button type="button" disabled={loadingOlder} onClick={()=>void loadOlder()} className="mx-auto block min-h-11 rounded-xl border border-line px-4 text-sm text-brand">{loadingOlder?'Loading older messages…':'Load older messages'}</button>}
-   {messages.filter(m=>!m.deleted_at).map(m=><div key={m.id} className={`flex ${m.direction==='outbound'?'justify-end':'justify-start'}`}><div className={`min-w-0 max-w-[92%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${m.direction==='outbound'?'rounded-br-md bg-brand text-white':'rounded-bl-md border border-line bg-panel text-ink'}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.text}</p>{m.direction==='outbound'&&userId&&<div className="mt-2 flex justify-end"><button type="button" aria-label="Delete reply from inbox" disabled={busy} onClick={()=>setDeletingId(m.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs text-white underline hover:bg-white/15 disabled:opacity-50"><Trash2 size={13}/> Delete</button></div>}<p className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70"><Clock size={11}/>{new Date(m.created_at).toLocaleDateString([],{month:'short',day:'numeric'})+' · '+formatTime(m.created_at)}{m.direction==='outbound'&&m.event_id.startsWith('outbox:')&&<span title="Published to chat or accepted by the messaging provider; this does not confirm it was read."> · Sent</span>}</p></div></div>)}
+   {messages.filter(m=>!m.deleted_at).map(m=><div key={m.id} className={`flex ${m.direction==='outbound'?'justify-end':'justify-start'}`}><div className={`min-w-0 max-w-[92%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[78%] ${m.direction==='outbound'?'rounded-br-md bg-brand text-white':'rounded-bl-md border border-line bg-panel text-ink'}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.text}</p>{m.direction==='outbound'&&userId&&(
+     <details name="reply-actions" className="mt-1 ml-auto w-fit text-right">
+      <summary aria-label="Reply options" className="ml-auto flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-lg hover:bg-white/15 focus-visible:outline [&::-webkit-details-marker]:hidden">
+       <MoreHorizontal size={20} aria-hidden="true"/>
+      </summary>
+      <button type="button" disabled={busy} onClick={event=>{
+       event.currentTarget.closest('details')?.removeAttribute('open');
+       setDeletingId(m.id);
+      }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-panel px-3 text-sm font-semibold text-ink disabled:opacity-50">
+       <Trash2 size={15} aria-hidden="true"/> Delete
+      </button>
+     </details>
+    )}<p className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70"><Clock size={11}/>{new Date(m.created_at).toLocaleDateString([],{month:'short',day:'numeric'})+' · '+formatTime(m.created_at)}{m.direction==='outbound'&&m.event_id.startsWith('outbox:')&&<span title="Published to chat or accepted by the messaging provider; this does not confirm it was read."> · Sent</span>}</p></div></div>)}
    {queued.map(q=><div key={q.id} className="flex justify-end"><div className="max-w-[92%] rounded-2xl rounded-br-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 sm:max-w-[78%]"><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{q.text}</p><p className="mt-2 text-xs text-amber-600">{q.status==='claimed'?'Sending…':q.status==='needs_review'?'Delivery unconfirmed — needs review':q.status==='queued'?'Waiting to send':'Status unavailable'}</p>{q.status==='needs_review'&&<p className="mt-1 text-xs text-subtle">The provider did not confirm delivery. Check the conversation in {channelName(conversation.channel)} before sending again to avoid a duplicate.</p>}</div></div>)}
    <div ref={endRef}/>
   </div>
