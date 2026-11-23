@@ -21,15 +21,16 @@ export function InboxPhoneAlerts({businessId,userId}:{businessId:string;userId:s
   const [busy,setBusy]=useState(true);
   const [available,setAvailable]=useState(false);
   const [message,setMessage]=useState('');
+  const blockedHint = 'To enable alerts, allow notifications in your browser settings.';
   useEffect(()=>{
     let active=true;
     async function read() {
       if (!('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)) {
-        if(active)setMessage('এই ব্রাউজারে Push পাওয়া যাচ্ছে না। iPhone হলে Home Screen থেকে BartaCare খুলুন।');
+        if(active)setMessage('This browser does not support push notifications. On iPhone, add BartaCare to your Home Screen and open it there.');
         return;
       }
       const db=getSupabase();
-      if (!db || !publicKey) {if(active)setMessage('এই সাইটে ডিভাইসের নোটিফিকেশন এখনো চালু হয়নি।');return;}
+      if (!db || !publicKey) {if(active)setMessage('Device notifications are unavailable for this site.');return;}
       const registration=await navigator.serviceWorker.getRegistration(scope);
       const subscription=registration?.scope===new URL(scope,location.origin).href ? await registration.pushManager.getSubscription() : null;
       let subscribed=false;
@@ -38,9 +39,9 @@ export function InboxPhoneAlerts({businessId,userId}:{businessId:string;userId:s
           .eq('business_id',businessId).eq('user_id',userId).maybeSingle().throwOnError();
         subscribed=Boolean(data) && Notification.permission==='granted';
       }
-      if(active){setEnabled(subscribed);setAvailable(true);}
+      if(active){setEnabled(subscribed);setAvailable(true);if(Notification.permission==='denied')setMessage(blockedHint);}
     }
-    read().catch(()=>{if(active)setMessage('পছন্দ যাচাই করা যায়নি। Settings আবার খুলুন।');})
+    read().catch(()=>{if(active)setMessage('Could not load your preference. Reopen Settings to try again.');})
       .finally(()=>{if(active)setBusy(false);});
     return ()=>{active=false;};
   },[businessId,userId,scope]);
@@ -51,7 +52,7 @@ export function InboxPhoneAlerts({businessId,userId}:{businessId:string;userId:s
     setBusy(true);setMessage('');
     try {
       if(want && await Notification.requestPermission()!=='granted'){
-        setMessage('অনুমতি পাওয়া যায়নি। পরে চাইলে ব্রাউজারের Settings থেকে অনুমতি দিতে পারবেন।');return;
+        setMessage(Notification.permission==='denied' ? blockedHint : 'Notifications stayed off. Turn them on when you’re ready.');return;
       }
       const registration=await navigator.serviceWorker.register(worker,{scope});
       if (!registration.active) {
@@ -82,16 +83,26 @@ export function InboxPhoneAlerts({businessId,userId}:{businessId:string;userId:s
         await subscription.unsubscribe();
       }
       setEnabled(want);
-    } catch {setMessage('পছন্দ সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।');}
+    } catch {setMessage('Could not save your preference. Try again.');}
     finally {setBusy(false);}
   }
 
-  return <fieldset className="flex shrink-0 flex-wrap items-center gap-2 text-sm text-ink" disabled={!available||busy}>
-    <legend className="sr-only">ডিভাইসের নোটিফিকেশন</legend>
-    <span>নতুন মেসেজ এলে এই ডিভাইসে নোটিফিকেশন চান?</span>
-    {([true,false] as const).map(want=><button key={String(want)} type="button" aria-pressed={enabled===want}
-      disabled={!available||busy||enabled===want} onClick={()=>void change(want)}
-      className={'min-h-11 rounded-lg border px-3 '+(enabled===want?'border-brand bg-panel font-semibold':'border-line')}>{want?'হ্যাঁ':'না'}</button>)}
-    {message&&<span role="status" className="text-xs text-subtle">{message}</span>}
-  </fieldset>;
+  const stateLabel = busy ? (available ? 'Saving…' : 'Checking…') : !available ? 'Unavailable' : enabled ? 'On' : 'Off';
+  return <div>
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas px-3 py-2.5 sm:px-4">
+      <div className="min-w-0">
+        <p id="inbox-alert-label" className="text-sm font-semibold text-ink">New inbox messages</p>
+        <p id="inbox-alert-help" className="mt-1 text-sm leading-5 text-subtle">Get alerts on this device when a customer messages you.</p>
+      </div>
+      <button type="button" role="switch" aria-checked={enabled} aria-labelledby="inbox-alert-label"
+        aria-describedby="inbox-alert-help" disabled={!available || busy} onClick={()=>void change(!enabled)}
+        className="inline-flex min-h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex-row sm:gap-2">
+        <span aria-hidden="true" className={`relative inline-block h-6 w-11 rounded-full border transition-colors ${enabled ? 'border-brand bg-brand' : 'border-subtle bg-panel'}`}>
+          <span className={`absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full transition-transform motion-reduce:transition-none ${enabled ? 'translate-x-5 bg-white' : 'bg-subtle'}`}/>
+        </span>
+        <span aria-hidden="true" className="text-xs font-medium text-subtle">{stateLabel}</span>
+      </button>
+    </div>
+    <p role="status" aria-live="polite" className="text-sm text-subtle">{message && <span className="mt-2 block">{message}</span>}</p>
+  </div>;
 }
