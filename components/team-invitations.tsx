@@ -4,7 +4,7 @@ import {getSupabase} from '@/lib/supabase';
 import {FormDialog} from '@/components/form-dialog';
 import {ShieldCheck,UserMinus,MoreHorizontal,Users,Mail,Eye,EyeOff} from 'lucide-react';
 
-type Invitation={id:string;email:string;status:string;created_at:string;expires_at:string;accepted_by:string|null};
+type Invitation={id:string;email:string;status:string;created_at:string;expires_at:string};
 type Member={user_id:string;role:string;email?:string|null};
 const field='w-full min-w-0 rounded-xl border border-line bg-canvas px-3 py-3 text-sm';
 const button='rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white disabled:opacity-50';
@@ -14,7 +14,8 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
  const [invitations,setInvitations]=useState<Invitation[]>([]),[members,setMembers]=useState<Member[]>([]);
  const [loading,setLoading]=useState(true);
  const [removing,setRemoving]=useState<Member|null>(null),[password,setPassword]=useState(''),[showPassword,setShowPassword]=useState(false);
- const reserved=invitations.filter(i=>i.status==='pending'&&new Date(i.expires_at)>new Date()).length;
+ const pendingInvitations=invitations.filter(i=>i.status==='pending'&&Date.parse(i.expires_at)>Date.now());
+ const reserved=pendingInvitations.length;
  const seatsUsed=members.length+reserved;
  const request=useCallback(async(method:'GET'|'POST'|'DELETE',body?:object)=>{
   const sb=getSupabase();
@@ -27,13 +28,20 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
   if(!res.ok)throw Error(result.error||'Request failed');
   return result;
  },[businessId]);
- const refresh=useCallback(async()=>{
-  setLoading(true);
+ const refresh=useCallback(async(background=false)=>{
+  if(!background)setLoading(true);
   try{const result=await request('GET');setInvitations(result.invitations);setMembers(result.members);setError('');}
   catch(e){setError(e instanceof Error?e.message:'Could not load team')}
-  finally{setLoading(false)}
+  finally{if(!background)setLoading(false)}
  },[request]);
  useEffect(()=>{if(role==='owner'||role==='admin')void refresh()},[role,refresh]);
+ useEffect(()=>{
+  if(role!=='owner'||!reserved||busy||removing)return;
+  const timer=window.setInterval(()=>{
+   if(document.visibilityState==='visible')void refresh(true);
+  },15000);
+  return ()=>window.clearInterval(timer);
+ },[role,reserved,busy,removing,refresh]);
  if(role!=='owner'&&role!=='admin')return <section className="rounded-2xl border border-line bg-panel p-4 sm:p-5"><h4 className="font-bold">Team members</h4><p className="mt-2 text-sm text-subtle">Team management is available to the workspace Owner and Admin.</p></section>;
  async function invite(e:React.FormEvent){
   e.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('');
@@ -84,10 +92,10 @@ export function TeamInvitations({businessId,role}:{businessId:string;role:string
    {role==='owner'&&<p className="text-xs text-subtle">Enter your owner password to remove a member from this workspace.</p>}
   </div>
   {role==='owner'&&<div className="mt-5 space-y-2"><h5 className="flex items-center gap-2 font-semibold"><Mail size={17}/>Invitations</h5>
-   {!loading&&!invitations.length&&<p className="text-sm text-subtle">No invitations yet.</p>}
-   {invitations.map(i=><div key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line p-3 text-sm">
-    <div className="min-w-0"><p className="break-all font-medium">{i.email}</p><p className="text-xs text-subtle">{i.status==='pending'&&new Date(i.expires_at)<new Date()?'Expired':i.status} · {new Date(i.created_at).toLocaleDateString()}</p>{i.status==='accepted'&&i.accepted_by&&<p className="break-all text-xs text-subtle">Member ID: {i.accepted_by}</p>}</div>
-    {i.status==='pending'&&new Date(i.expires_at)>new Date()&&<button type="button" disabled={busy} className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50" onClick={()=>void revoke(i.id)}>Cancel</button>}
+   {!loading&&!reserved&&<p className="text-sm text-subtle">No pending invitations.</p>}
+   {pendingInvitations.map(i=><div key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line p-3 text-sm">
+    <div className="min-w-0"><p className="break-all font-medium">{i.email}</p><p className="text-xs text-subtle">Pending · {new Date(i.created_at).toLocaleDateString()}</p></div>
+    <button type="button" disabled={busy} className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50" onClick={()=>void revoke(i.id)}>Cancel</button>
    </div>)}
   </div>}
   <FormDialog open={!!removing} title="Delete team member?" description="This action removes access to this workspace only." onClose={closeRemove} busy={busy}>

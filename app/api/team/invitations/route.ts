@@ -31,6 +31,7 @@ export async function GET(req:NextRequest){
  if(member.role==='admin')return respond({invitations:[],members:members??[]});
  const {data,error}=await database.from('business_team_invitations')
   .select('id,email,role,status,created_at,expires_at,accepted_by').eq('business_id',businessId)
+  .eq('status','pending').gt('expires_at',new Date().toISOString())
   .order('created_at',{ascending:false}).limit(50);
  if(error)return respond({error:'Team invitations unavailable'},503);
  const roster=await Promise.all((members??[]).map(async member=>{
