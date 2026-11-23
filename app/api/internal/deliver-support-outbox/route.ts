@@ -66,6 +66,13 @@ export async function GET(req:NextRequest){
     p_business_id:businessId,p_id:item.id,p_claim_token:item.claim_token,
     p_sent:sent,p_provider_id:providerId
    });
+   if(!ackError&&sent&&providerId){
+    const {error:receiptError}=await db.from('support_messages')
+     .update({telegram_delivery:{bot:deliveryToken.split(':')[0],chat:item.recipient,message:providerId}})
+     .eq('business_id',businessId).eq('conversation_id',item.conversation_id)
+     .eq('direction','outbound').eq('event_id','outbox:'+item.id);
+    if(receiptError)console.error('Telegram deletion receipt unavailable',receiptError.code);
+   }
    if(ackError)console.error('Outbox acknowledgement failed',ackError.code);
    if(processed>=10)break;
   }

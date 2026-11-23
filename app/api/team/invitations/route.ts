@@ -30,10 +30,16 @@ export async function GET(req:NextRequest){
  if(membersError)return respond({error:'Team list unavailable'},503);
  if(member.role==='admin')return respond({invitations:[],members:members??[]});
  const {data,error}=await database.from('business_team_invitations')
-  .select('id,email,role,status,created_at,expires_at').eq('business_id',businessId)
+  .select('id,email,role,status,created_at,expires_at,accepted_by').eq('business_id',businessId)
+  .eq('status','pending').gt('expires_at',new Date().toISOString())
   .order('created_at',{ascending:false}).limit(50);
  if(error)return respond({error:'Team invitations unavailable'},503);
- return respond({invitations:data??[],members:members??[]});
+ const roster=await Promise.all((members??[]).map(async member=>{
+  if(member.user_id===user.id)return {...member,email:user.email??null};
+  const {data:account,error:lookupError}=await database.auth.admin.getUserById(member.user_id);
+  return {...member,email:lookupError?null:account.user?.email??null};
+ }));
+ return respond({invitations:data??[],members:roster});
 }
 export async function POST(req:NextRequest){
  let body:unknown;try{body=await req.json()}catch{return respond({error:'Invalid request'},400)}
