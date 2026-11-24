@@ -44,6 +44,30 @@ begin
  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token) values(b,c,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
  perform public.reply_with_chat_order(job,token,'Repeat',null);
  if (select count(*) from public.orders where business_id=b and external_sender_id=(select sender_id from public.support_conversations where id=c))<>1 then raise exception 'Repeated consent duplicated order'; end if;
+ -- Second purchase reuses the same contacts; third supplies different contacts.
+ for n in 2..3 loop
+  insert into public.support_messages(business_id,conversation_id,event_id,direction,text,created_at)
+   values(b,c,'buy-'||n,'inbound','I want another one',now()+n*interval '10 seconds') returning id into mid;
+  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token)
+   values(b,c,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
+  perform public.reply_with_chat_order(job,token,'Buy again',jsonb_build_object('product_id',product));
+  if not exists(select from public.support_order_drafts where conversation_id=c and details=jsonb_build_object('product_id',product) and order_id is null and summary is null) then raise exception 'Reused old contact or consent'; end if;
+  if n=3 then draft:=draft||'{"email":"second@example.com","phone":"01800000000"}'::jsonb; end if;
+  insert into public.support_messages(business_id,conversation_id,event_id,direction,text,created_at)
+   values(b,c,'details-'||n,'inbound','Delivery details',now()+n*interval '10 seconds'+interval '1 second') returning id into mid;
+  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token)
+   values(b,c,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
+  perform public.reply_with_chat_order(job,token,'Details',draft);
+  update public.support_outbox set status='sent' where request_id=job;
+  insert into public.support_messages(business_id,conversation_id,event_id,direction,text,created_at)
+   values(b,c,'approve-'||n,'inbound','ঠিক আছে',now()+n*interval '10 seconds'+interval '2 seconds') returning id into mid;
+  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token)
+   values(b,c,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
+  perform public.reply_with_chat_order(job,token,'OK',null);
+  perform public.reply_with_chat_order(job,token,'Retry',null);
+  if (select count(distinct order_number) from public.orders where business_id=b and external_sender_id=(select sender_id from public.support_conversations where id=c))<>n then raise exception 'Wrong order count'; end if;
+  if not exists(select from public.orders o join public.support_order_drafts d on d.order_id=o.id where d.conversation_id=c and o.delivery_email=draft->>'email' and o.delivery_phone=draft->>'phone') then raise exception 'Wrong contacts'; end if;
+ end loop;
  -- Another conversation cannot use the first customer's consent or draft.
  insert into public.support_messages(business_id,conversation_id,event_id,direction,text) values(b,c2,'other','inbound','CONFIRM') returning id into mid;
  insert into public.support_ai_jobs(business_id,conversation_id,inbound_message_id,status,claim_token) values(b,c2,mid,'processing',gen_random_uuid()) returning id,claim_token into job,token;
