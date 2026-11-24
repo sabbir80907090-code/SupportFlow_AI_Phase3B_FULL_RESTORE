@@ -23,3 +23,10 @@ test('email must be valid and explicitly supplied by the customer',()=>{
  assert.equal(parseOrderAnswer(JSON.stringify({reply:'OK',order:{email:'User@gmail.com'}}),[],['user@gmail.com']).patch.email,'user@gmail.com');
  for(const email of ['invented@gmail.com','not-an-email'])assert.equal(parseOrderAnswer(JSON.stringify({reply:'Email please',order:{email}}),[],['hello']).patch,null);
 });
+
+test('a provider cannot issue the reported Bengali receipt or an English equivalent',()=>{
+ for(const reply of ['আপনার অর্ডারটি পর্যালোচনার জন্য জমা দেওয়া হয়েছে।','Your order has been submitted for review.']){
+  const result=parseOrderAnswer(JSON.stringify({reply,order:null}),[],[]);
+  assert.notEqual(result.reply,reply);assert.match(result.reply,/CONFIRM/);assert.equal(result.patch,null);
+ }
+});
