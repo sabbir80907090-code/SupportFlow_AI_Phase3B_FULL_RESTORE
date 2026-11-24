@@ -1,5 +1,6 @@
 'use client';
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useId,useRef,useState} from 'react';
+import {Trash2,Loader2} from 'lucide-react';
 import {ProductUrlImport} from '@/components/product-url-import';
 import {WebsiteAutoSync} from '@/components/website-auto-sync';
 import {getSupabase} from '@/lib/supabase';
@@ -14,6 +15,24 @@ function ProductManagementWorkspace({businessId,role}:{businessId:string;role:st
  const canEdit=role==='owner'||role==='admin';
  const [selectedIds,setSelectedIds]=useState<Set<string>>(()=>new Set());
  const deleteLock=useRef(false);
+ const [deletePending,setDeletePending]=useState<Product[]|null>(null);
+ const deleteDialogRef=useRef<HTMLDialogElement>(null);
+ const cancelDeleteRef=useRef<HTMLButtonElement>(null);
+ const deleteTriggerRef=useRef<HTMLButtonElement>(null);
+ const deleteTitleId=useId(),deleteDescriptionId=useId();
+ const deleteDialogOpen=canEdit&&deletePending!==null;
+ useEffect(()=>{
+  const dialog=deleteDialogRef.current;
+  if(!deleteDialogOpen||!dialog)return;
+  const previous=document.activeElement instanceof HTMLElement?document.activeElement:null;
+  const overflow=document.body.style.overflow;
+  if(!dialog.open)dialog.showModal();
+  document.body.style.overflow='hidden';
+  cancelDeleteRef.current?.focus();
+  return()=>{if(dialog.open)dialog.close();document.body.style.overflow=overflow;if(previous?.isConnected)previous.focus({preventScroll:true});};
+ },[deleteDialogOpen]);
+ useEffect(()=>{if(!canEdit)setDeletePending(null);},[canEdit]);
+ function closeDeleteDialog(){if(!deleteLock.current)setDeletePending(null);}
  const selectAllRef=useRef<HTMLInputElement>(null);
  const press=useRef<{timer:ReturnType<typeof setTimeout>;pointerId:number;x:number;y:number}|null>(null);
  const suppressClick=useRef<string|null>(null);
@@ -47,8 +66,7 @@ function ProductManagementWorkspace({businessId,role}:{businessId:string;role:st
  async function save(e:React.FormEvent){e.preventDefault();if(!canEdit||busy)return;const db=getSupabase();if(!db)return;const price=Number(form.price),stock=form.stock_quantity.trim()===''?null:Number(form.stock_quantity);if(!form.name.trim()||!form.price.trim()||!Number.isFinite(price)||price<0||(stock!==null&&(!Number.isInteger(stock)||stock<0||stock>2147483647))){setError('Enter a valid name, price and stock quantity');return}setBusy(true);setError('');let imagePath:string|null=editing?(items.find(p=>p.id===editing)?.image_path??null):null;let uploadedPath:string|null=null;if(removePhoto)imagePath=null;if(photo){if(!['image/jpeg','image/png','image/webp'].includes(photo.type)||photo.size>5242880){setError('Select a JPG, PNG or WebP image under 5 MB');setBusy(false);return}const extension=photo.type==='image/png'?'png':photo.type==='image/webp'?'webp':'jpg';uploadedPath=businessId+'/'+crypto.randomUUID()+'.'+extension;const upload=await db.storage.from('business-product-images').upload(uploadedPath,photo,{contentType:photo.type,upsert:false});if(upload.error){setError(upload.error.message);setBusy(false);return}imagePath=uploadedPath;}const payload={image_path:imagePath,name:form.name.trim(),description:form.description.trim()||null,sku:form.sku.trim()||null,category:form.category.trim()||null,price,currency:form.currency.trim().toUpperCase(),stock_quantity:stock,is_active:form.is_active};const result=editing?await db.from('business_products').update(payload).eq('id',editing).eq('business_id',businessId):await db.from('business_products').insert({...payload,business_id:businessId});if(result.error){setError(result.error.message);if(uploadedPath)await db.storage.from('business-product-images').remove([uploadedPath]);}else{const previous=editing?items.find(p=>p.id===editing)?.image_path:null;if(previous&&previous!==imagePath)await db.storage.from('business-product-images').remove([previous]);setPhoto(null);setPreview('');setRemovePhoto(false);setShowForm(false);setEditing(null);setForm({...empty});await refresh();setNotice('Product saved.')}setBusy(false)}
  async function removeProducts(products:Product[]){
   if(!canEdit||busy||loading||deleteLock.current||!products.length)return;
-  if(!confirm(products.length===1?'Delete '+products[0].name+'?':`Permanently delete ${products.length} selected products? This cannot be undone.`))return;
-  const db=getSupabase();if(!db){setError('Sign in required');return;}
+  const db=getSupabase();if(!db){setError('Sign in required');setDeletePending(null);return;}
   deleteLock.current=true;setBusy(true);setError('');setNotice('');
   const deletedIds=new Set<string>();let failure='',cleanupWarning=false;
   try{
@@ -80,7 +98,7 @@ function ProductManagementWorkspace({businessId,role}:{businessId:string;role:st
    try{await refresh();}catch{setLoading(false);failure=failure||'Could not refresh the catalogue.';}
    if(deletedIds.size)setNotice(`${deletedIds.size} product(s) deleted.${cleanupWarning?' Some images could not be cleaned up.':''}`);
    if(failure)setError(failure);
-   deleteLock.current=false;setBusy(false);
+   deleteLock.current=false;setBusy(false);setDeletePending(null);
   }
  }
  const categories=Array.from(new Set(items.map(p=>p.category?.trim()).filter((value):value is string=>!!value))).sort((a,b)=>a.localeCompare(b));
@@ -115,6 +133,21 @@ function ProductManagementWorkspace({businessId,role}:{businessId:string;role:st
  function toggleProduct(id:string){setSelectedIds(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next;});}
  function toggleAll(){setSelectedIds(allSelected?new Set():new Set(visible.map(p=>p.id)));}
  return <div className="space-y-5">
+ <dialog ref={deleteDialogRef} aria-labelledby={deleteTitleId} aria-describedby={deleteDescriptionId} onCancel={e=>{e.preventDefault();closeDeleteDialog();}} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md max-h-[85dvh] overflow-y-auto rounded-2xl border border-line bg-panel p-5 text-ink shadow-2xl backdrop:bg-black/70 sm:p-6">
+  {deletePending&&<div className="space-y-4">
+   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-500/15 text-rose-500"><Trash2 size={26} aria-hidden="true"/></div>
+   <h2 id={deleteTitleId} className="text-center text-xl font-bold">{deletePending.length===1?'Delete product?':'Delete products?'}</h2>
+   <div id={deleteDescriptionId} className="space-y-2 text-center text-sm text-subtle">
+    <p className="break-words">{deletePending.length===1?<>Are you sure you want to delete <strong className="text-ink">{deletePending[0].name}</strong>?</>:`Are you sure you want to delete ${deletePending.length} selected products?`}</p>
+    <p className="font-medium text-rose-500">This action cannot be undone.</p>
+   </div>
+   <div className="grid grid-cols-2 gap-3">
+    <button ref={cancelDeleteRef} type="button" disabled={busy} onClick={closeDeleteDialog} className="min-h-11 rounded-xl border border-line px-3 py-2 text-sm font-semibold disabled:opacity-50">Cancel</button>
+    <button type="button" disabled={busy||loading||!canEdit} onClick={()=>void removeProducts(deletePending)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">{busy?<><Loader2 size={16} className="animate-spin" aria-hidden="true"/>Deleting...</>:`Delete (${deletePending.length})`}</button>
+   </div>
+   {busy&&<p role="status" className="text-center text-xs text-subtle">Deleting selected products. Please wait.</p>}
+  </div>}
+ </dialog>
  <div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="text-xl font-bold">Product Management</h4><p className="text-sm text-subtle">AI uses active products for prices, stock and descriptions. Matching product photos help answer visual questions.</p></div>{canEdit&&<button disabled={busy} className="rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>{setImportNotice('');setForm({...empty});setEditing(null);setPhoto(null);setPreview('');setRemovePhoto(false);setShowForm(!showForm)}}>{showForm?'Cancel':'+ Add Product'}</button>}</div>
  {role==='owner'&&!busy&&<ProductUrlImport key={businessId} businessId={businessId} onSaved={refresh}/>}
  {canEdit&&!busy&&<WebsiteAutoSync key={'sync-'+businessId} businessId={businessId} role={role}/>}
@@ -129,7 +162,7 @@ function ProductManagementWorkspace({businessId,role}:{businessId:string;role:st
  <label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input ref={selectAllRef} type="checkbox" className="h-5 w-5 accent-violet-500" checked={allSelected} disabled={busy||loading||visible.length===0} onChange={toggleAll}/>Select all shown ({visible.length})</label>
  <span className="text-sm text-subtle" aria-live="polite">{selected.length} selected</span>
  <button type="button" disabled={busy||loading||selected.length===0} className="min-h-11 rounded-lg border border-line px-3 text-sm disabled:opacity-50" onClick={()=>setSelectedIds(new Set())}>Cancel selection</button>
- <button type="button" disabled={busy||loading||selected.length===0} className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50" onClick={()=>void removeProducts(selected)}>Delete selected{selected.length>0?` (${selected.length})`:''}</button>
+ <button type="button" disabled={busy||loading||selected.length===0} className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-50" ref={deleteTriggerRef} onClick={()=>{if(canEdit&&!busy&&!loading&&selected.length){cancelPress();setDeletePending([...selected]);}}}>Delete selected{selected.length>0?` (${selected.length})`:''}</button>
  </div>}
  <div className="product-list overflow-x-auto rounded-2xl border border-line bg-panel"><table className="responsive-products w-full min-w-[650px] text-left text-sm"><thead><tr className="border-b border-line text-subtle"><th className="p-4">Product</th><th className="p-4">SKU / Category</th><th className="p-4">Price</th><th className="p-4">Stock</th><th className="p-4">Status</th>{canEdit&&<th className="p-4">Actions</th>}</tr></thead><tbody>{visible.map(p=><tr key={p.id} className={'border-b border-line '+(canEdit?'select-none cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ':'')+(selectionMode&&selectedIds.has(p.id)?'bg-violet-500/15 ':'')} tabIndex={canEdit?0:undefined} aria-selected={selectionMode?selectedIds.has(p.id):undefined} onPointerDown={e=>startPress(e,p.id)} onPointerMove={movePress} onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress} onContextMenu={e=>{if(canEdit&&!isControl(e.target))e.preventDefault();}} onClick={e=>clickRow(e,p.id)} onKeyDown={e=>{if(e.target!==e.currentTarget||!canEdit||busy||loading)return;if(e.key===' '||e.key==='Enter'){e.preventDefault();if(!e.repeat)toggleProduct(p.id);}else if(e.key==='Escape'){setSelectedIds(new Set());}}}><td data-label="Product" className="p-4"><div className="flex items-center gap-3">{selectionMode&&<label className="flex min-h-11 min-w-11 shrink-0 items-center justify-center"><input type="checkbox" className="h-5 w-5 accent-violet-500" aria-label={`Select ${p.name}`} checked={selectedIds.has(p.id)} disabled={busy||loading} onChange={()=>toggleProduct(p.id)}/></label>}{p.image_path&&imageUrls[p.image_path]?<img draggable={false} src={imageUrls[p.image_path]} alt={p.name} className="h-12 w-12 rounded-lg object-cover"/>:<div className="flex h-12 w-12 items-center justify-center rounded-lg bg-canvas text-xs text-subtle">No photo</div>}<div className="font-semibold">{p.name}</div></div><div className="max-w-[230px] truncate text-xs text-subtle">{p.description}</div></td><td data-label="SKU / Category" className="p-4">{p.sku??'—'}<div className="text-xs text-subtle">{p.category??'—'}</div></td><td data-label="Price" className="p-4">{p.currency} {Number(p.price).toFixed(2)}</td><td data-label="Stock" className="p-4">{p.stock_quantity??'Unknown'}</td><td data-label="Status" className="p-4">{p.is_active?'Active':'Inactive'}</td>{canEdit&&<td data-label="Actions" className="space-x-3 p-4"><button disabled={busy} className="text-brand underline" aria-label={`Edit ${p.name}`} onClick={()=>edit(p)}>Edit</button></td>}</tr>)}{!loading&&visible.length===0&&<tr><td className="p-8 text-center text-subtle" colSpan={canEdit?6:5}>{items.length===0?(canEdit?'Your catalogue is empty. Add a product or import one from a website.':'No products yet. Ask your workspace owner to add products.'):'No products match these filters. Try clearing them.'}</td></tr>}</tbody></table>{loading&&<p className="p-4 text-subtle">Loading products...</p>}</div></div>;
 }
