@@ -35,3 +35,12 @@ Member email ও channel configuration শুধু staff দেখতে পা
 আলাদা test database-এ migration-এর পর `tests/platform-directory.sql` চালান। এটি fixture তৈরি করে rollback করে।
 Browser-এ staff login, business search, pagination, member ও channel detail এবং logout যাচাই করুন।
 একটি সাধারণ business owner account দিয়েও access denied যাচাই করুন।
+
+## স্থায়ী সদস্য
+
+Platform directory migration-এর পরে `202611250003_platform_team_members.sql` চালাতে হবে।
+একজন বিদ্যমান স্থায়ী Admin থাকলে তিনি মূল Admin হন। নতুন database-এ প্রথম যাচাইকৃত Admin যোগ করার সময়
+`platform_admins.team_owner = true` সেট করুন। একাধিক স্থায়ী Admin থাকলে migration থামবে যাতে মূল Admin আলাদা করে নির্বাচন করা যায়।
+
+মূল Admin **সদস্য যোগ করুন** থেকে একটি বিদ্যমান ও যাচাইকৃত BartaCare account-এর email দেবেন।
+সদস্য ব্যবসার তালিকা ও বিস্তারিত দেখতে পারবেন। নতুন সদস্যপদ স্থায়ী। শুধু মূল Admin অন্য সদস্য যোগ করতে পারেন।

@@ -2,6 +2,7 @@
 
 import {useEffect, useState, type FormEvent} from 'react';
 import Link from 'next/link';
+import {TeamAccess} from './team/access';
 import {db} from '../lib/client';
 
 export default function StaffSession({children}: {children: React.ReactNode}) {
@@ -38,7 +39,7 @@ export default function StaffSession({children}: {children: React.ReactNode}) {
     {user && <button disabled={busy} onClick={logout}>লগ আউট</button>}</div></header>
     <main>{message && <p role="alert">{message}</p>}
     {!db ? <p role="alert">Admin App-এর Supabase সংযোগ কনফিগার করতে হবে।</p> : user === undefined ? <p role="status">সেশন যাচাই হচ্ছে…</p> :
-    user ? <section key={user}>{children}</section> : <form className="login panel" onSubmit={login}>
+    user ? <TeamAccess key={user}>{children}</TeamAccess> : <form className="login panel" onSubmit={login}>
       <h1>স্টাফ লগ ইন</h1><label>ইমেইল<input type="email" name="email" autoComplete="username" required /></label>
       <label>পাসওয়ার্ড<input type="password" name="password" autoComplete="current-password" required /></label>
       <button className="primary" disabled={busy}>{busy ? 'যাচাই হচ্ছে…' : 'লগ ইন'}</button>
